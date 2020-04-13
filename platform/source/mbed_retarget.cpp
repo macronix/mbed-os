@@ -47,20 +47,14 @@
 static SingletonPtr<PlatformMutex> _mutex;
 
 #if defined(__ARMCC_VERSION)
-#   if __ARMCC_VERSION >= 6010050
-#      include <arm_compat.h>
-#   endif
+#   include <arm_compat.h>
 #   include <rt_sys.h>
 #   include <rt_misc.h>
 #   include <stdint.h>
 #   define PREFIX(x)    _sys##x
 #   define OPEN_MAX     _SYS_OPEN
 #   ifdef __MICROLIB
-#       if __ARMCC_VERSION >= 6010050
 asm(" .global __use_full_stdio\n");
-#       else
-#           pragma import(__use_full_stdio)
-#       endif
 #   endif
 
 #elif defined(__ICCARM__)
@@ -97,7 +91,7 @@ asm(" .global __use_full_stdio\n");
 
 using namespace mbed;
 
-#if defined(__MICROLIB) && (__ARMCC_VERSION>5030000)
+#if defined(__MICROLIB)
 // Before version 5.03, we were using a patched version of microlib with proper names
 extern const char __stdin_name[]  = ":tt";
 extern const char __stdout_name[] = ":tt";
@@ -560,7 +554,7 @@ std::FILE *fdopen(FileHandle *fh, const char *mode)
  * */
 extern "C" FILEHANDLE PREFIX(_open)(const char *name, int openflags)
 {
-#if defined(__MICROLIB) && (__ARMCC_VERSION>5030000)
+#if defined(__MICROLIB)
     // Before version 5.03, we were using a patched version of microlib with proper names
     // This is the workaround that the microlib author suggested us
     static int n = 0;
@@ -803,7 +797,7 @@ MBED_WEAK int mbed::minimal_console_putc(int c)
 }
 #endif // MBED_CONF_PLATFORM_STDIO_MINIMAL_CONSOLE_ONLY
 
-#if defined (__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)
+#if defined (__ARMCC_VERSION)
 extern "C" void PREFIX(_exit)(int return_code)
 {
     while (1) {}
@@ -1084,12 +1078,8 @@ extern "C" long PREFIX(_flen)(FILEHANDLE fh)
 #if !defined(COMPONENT_SPE) || !defined(TARGET_TFM)
 
 #if !defined(__MICROLIB)
-#if defined (__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)
 __asm(".global __use_two_region_memory\n\t");
 __asm(".global __use_no_semihosting\n\t");
-#else
-#pragma import(__use_two_region_memory)
-#endif
 #endif
 
 // Through weak-reference, we can check if ARM_LIB_HEAP is defined at run-time.
@@ -1635,8 +1625,6 @@ extern "C" WEAK void *__aeabi_read_tp(void)
     return __section_begin("__iar_tls$$DATA");
 }
 #endif
-#elif defined(__CC_ARM)
-// Do nothing
 #elif defined (__GNUC__)
 struct _reent;
 // Stub out locks when an rtos is not present
