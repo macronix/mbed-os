@@ -652,7 +652,7 @@ class mbedToolchain(with_metaclass(ABCMeta, object)):
 
     @abstractmethod
     def parse_output(self, output):
-        """Take in compiler output and extract sinlge line warnings and errors from it.
+        """Take in compiler output and extract single line warnings and errors from it.
 
         Positional arguments:
         output -- a string of all the messages emitted by a run of the compiler
@@ -778,14 +778,15 @@ class mbedToolchain(with_metaclass(ABCMeta, object)):
             self.link(elf, objects, libraries, lib_dirs, linker_script)
 
         if self.config.has_regions:
-            filename = "{}_application.{}".format(tail, ext)
+            stem = join(new_path, "{}_application".format(tail))
         else:
-            filename = "{}.{}".format(tail, ext)
-        full_path = join(new_path, filename)
+            stem = join(new_path, tail)
+        full_path = "{}.{}".format(stem, ext)
         if ext != 'elf':
             if full_path and self.need_update(full_path, [elf]):
                 self.progress("elf2bin", tail)
-                self.binary(r, elf, full_path)
+                self.binary(r, elf, "{}.{}".format(stem, 'bin'))
+                self.binary(r, elf, "{}.{}".format(stem, 'hex'))
             if self.config.has_regions:
                 full_path, updatable = self._do_region_merge(
                     tail, full_path, ext
@@ -990,15 +991,6 @@ class mbedToolchain(with_metaclass(ABCMeta, object)):
             self.ld.append(define_string)
             self.flags["ld"].append(define_string)
 
-        if self.target.is_PSA_secure_target:
-            for flag, param in [
-                ("MBED_PUBLIC_RAM_START", "target.public-ram-start"),
-                ("MBED_PUBLIC_RAM_SIZE", "target.public-ram-size")
-            ]:
-                define_string = self.make_ld_define(flag, params[param].value)
-                self.ld.append(define_string)
-                self.flags["ld"].append(define_string)
-
         if hasattr(self.target, 'post_binary_hook'):
             if self.target.post_binary_hook is None:
                 define_string = self.make_ld_define(
@@ -1106,11 +1098,12 @@ class mbedToolchain(with_metaclass(ABCMeta, object)):
         target.c_lib is modified to have the lowercased string of its original string.
         This is done to be case insensitive when validating.
         """
-        if  hasattr(target, "default_lib"):
-            raise NotSupportedException(
-                   "target.default_lib is no longer supported, please use target.c_lib for C library selection."
-                )
-        if  hasattr(target, "c_lib"):
+        if hasattr(target, "default_lib"):
+            # Use default_lib as the c_lib attribute. This allows backwards
+            # compatibility with older target definitions, allowing either
+            # default_lib or c_lib to specify the C library to use.
+            target.c_lib = target.default_lib.lower()
+        if hasattr(target, "c_lib"):
             target.c_lib = target.c_lib.lower()
             if (
                 hasattr(target, "supported_c_libs") == False
@@ -1393,3 +1386,28 @@ class mbedToolchain(with_metaclass(ABCMeta, object)):
         to_ret['linker'] = {'flags': copy(self.flags['ld'])}
         to_ret.update(self.config.report)
         return to_ret
+
+def should_replace_small_c_lib(target, toolchain):
+    """
+    Check if the small C lib should be replaced with the standard C lib.
+    Return True if the replacement occurs otherwise return False.
+    """
+    return (
+        not is_library_supported("small", target, toolchain)
+        and is_library_supported("std", target, toolchain)
+        and target.c_lib == "small"
+    )
+
+
+def is_library_supported(lib_type, target, toolchain):
+    """
+    Check if a library type is supported by a toolchain for a given target.
+
+    Return True if the library type is supported, False if not supported or
+    the target does not have an supported_c_libs attribute.
+    """
+    return (
+        hasattr(target, "supported_c_libs")
+        and toolchain.lower() in target.supported_c_libs
+        and lib_type in target.supported_c_libs[toolchain.lower()]
+    )

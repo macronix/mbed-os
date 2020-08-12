@@ -76,7 +76,7 @@
             "BLE_Thermometer"
       ],
       "features" : [],
-      "targets" : ["NRF51_DK", "NRF52_DK", "DISCO_L475VG_IOT01A"],
+      "targets" : ["NRF52_DK", "DISCO_L475VG_IOT01A"],
       "toolchains" : [],
       "exporters": [],
       "compile" : true,
@@ -127,7 +127,9 @@
       "exporters": [],
       "compile" : true,
       "export": true,
-      "test" : false,
+      "test" : true,
+      "baud_rate": 9600,
+      "compare_log": ["mbed-os-example-wifi/tests/wifi_scan.log"],
       "auto-update" : true
     },
     {
@@ -164,7 +166,7 @@
         "sub-repo-example": false,
         "subs": [],
         "features" : [],
-        "targets" : ["DISCO_L072CZ_LRWAN1", "MTB_MTS_XDOT", "MTS_MDOT_F411RE"],
+        "targets" : ["DISCO_L072CZ_LRWAN1", "MTS_MDOT_F411RE"],
         "toolchains" : [],
         "exporters": [],
         "compile" : true,
@@ -274,7 +276,7 @@
         "sub-repo-example": false,
         "subs": [],
         "features" : [],
-        "targets" : ["K64F","K82F"],
+        "targets" : ["DISCO_L475VG_IOT01A"],
         "toolchains" : [],
         "exporters": [],
         "compile" : true,
@@ -293,7 +295,7 @@
         "targets" : ["DISCO_F469NI", "DISCO_F746NG", "K66F",
                      "NUCLEO_F429ZI", "NUCLEO_F439ZI", "NUCLEO_F746ZG",
                      "NUCLEO_F756ZG", "NUCLEO_F767ZI",
-                     "NUMAKER_PFM_NUC472", "UBLOX_EVK_ODIN_W2"],
+                     "NUMAKER_PFM_NUC472"],
         "toolchains" : [],
         "exporters": [],
         "compile" : true,
@@ -307,7 +309,7 @@
         "sub-repo-example": false,
         "subs": [],
         "features" : [],
-        "targets" : ["K64F", "NUCLEO_F429ZI", "UBLOX_EVK_ODIN_W2"],
+        "targets" : ["K64F", "NUCLEO_F429ZI"],
         "toolchains" : [],
         "exporters": [],
         "compile" : true,
@@ -332,6 +334,22 @@
         "auto-update" : true
     },
     {
+        "name": "mbed-os-example-psa",
+        "github":"https://github.com/ARMmbed/mbed-os-example-psa",
+        "sub-repo-example": false,
+        "subs": [],
+        "features" : [],
+        "targets" : ["ARM_MUSCA_B1", "K64F"],
+        "toolchains" : ["GCC_ARM", "ARM"],
+        "exporters": [],
+        "compile" : true,
+        "export": true,
+        "test" : true,
+        "baud_rate": 9600,
+        "compare_log": ["mbed-os-example-psa/tests/psa.log"],
+        "auto-update" : true
+    },
+    {
         "name": "mbed-os-example-nfc",
         "github": "https://github.com/ARMmbed/mbed-os-example-nfc",
         "sub-repo-example": true,
@@ -345,7 +363,12 @@
         "exporters": [],
         "compile" : true,
         "export": true,
-        "test" : false,
+        "test" : true,
+        "baud_rate": 9600,
+        "compare_log": [
+            "mbed-os-example-nfc/tests/EEPROM.log",
+            "mbed-os-example-nfc/tests/SmartPoster_noShield.log"
+        ],
         "auto-update" : true
     },
     {
@@ -418,12 +441,7 @@
         "sub-repo-example": false,
         "subs": [],
         "features" : [],
-        "targets" : ["CY8CKIT_062_WIFI_BT_PSA",
-                     "K66F",
-                     "NUCLEO_F429ZI",
-                     "UBLOX_ODIN_EVK_W2",
-                     "LPC55S69_NS"
-                    ],
+        "targets" : [ "K66F", "NUCLEO_F429ZI", "ARM_MUSCA_B1"],
         "toolchains" : [],
         "exporters": [],
         "compile" : true,
@@ -448,6 +466,21 @@
         "baud_rate": 9600,
         "compare_log": ["mbed-os-example-atecc608a/tests/atecc608a.log"],
         "auto-update" : true
+    },
+    {
+      "name": "mbed-os-example-aws",
+      "github": "https://github.com/ARMmbed/mbed-os-example-aws",
+      "sub-repo-example": false,
+      "subs": [],
+      "features" : [],
+      "targets" : ["DISCO_L475VG_IOT01A", "K64F", "NUCLEO_F429ZI"],
+      "toolchains" : [],
+      "exporters": [],
+      "compile" : true,
+      "export": true,
+      "test" : false,
+      "baud_rate": 115200,
+      "auto-update" : true
     }
   ]
 }

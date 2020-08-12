@@ -19,10 +19,10 @@
 #if DEVICEKEY_ENABLED
 #include "mbedtls/cmac.h"
 #include "mbedtls/platform.h"
-#include "features/storage/kvstore/include/KVStore.h"
-#include "features/storage/kvstore/tdbstore/TDBStore.h"
-#include "features/storage/kvstore/kv_map/KVMap.h"
-#include "features/storage/kvstore/conf/kv_config.h"
+#include "kvstore/KVStore.h"
+#include "kvstore/TDBStore.h"
+#include "kvstore/KVMap.h"
+#include "kv_config/kv_config.h"
 #include "mbed_wait_api.h"
 #include <stdlib.h>
 #include "platform/mbed_error.h"
@@ -245,7 +245,7 @@ finish:
     return DEVICEKEY_SUCCESS;
 }
 
-int DeviceKey::generate_root_of_trust()
+int DeviceKey::generate_root_of_trust(size_t key_size)
 {
     int ret = DEVICEKEY_GENERATE_RANDOM_ERROR;
     uint32_t key_buff[DEVICE_KEY_32BYTE / sizeof(uint32_t)];
@@ -255,12 +255,16 @@ int DeviceKey::generate_root_of_trust()
         return DEVICEKEY_ALREADY_EXIST;
     }
 
+    if (key_size != DEVICE_KEY_32BYTE && key_size != DEVICE_KEY_16BYTE) {
+        return DEVICEKEY_INVALID_KEY_SIZE;
+    }
+
 #if defined(DEVICE_TRNG) || defined(MBEDTLS_ENTROPY_NV_SEED) || defined(MBEDTLS_ENTROPY_HARDWARE_ALT)
     mbedtls_entropy_context *entropy = new mbedtls_entropy_context;
     mbedtls_entropy_init(entropy);
-    memset(key_buff, 0, actual_size);
+    memset(key_buff, 0, key_size);
 
-    ret = mbedtls_entropy_func(entropy, (unsigned char *)key_buff, actual_size);
+    ret = mbedtls_entropy_func(entropy, (unsigned char *)key_buff, key_size);
     if (ret != MBED_SUCCESS) {
         ret = DEVICEKEY_GENERATE_RANDOM_ERROR;
     } else {
@@ -271,7 +275,7 @@ int DeviceKey::generate_root_of_trust()
     delete entropy;
 
     if (ret == DEVICEKEY_SUCCESS) {
-        ret = device_inject_root_of_trust(key_buff, actual_size);
+        ret = device_inject_root_of_trust(key_buff, key_size);
     }
 #endif
 

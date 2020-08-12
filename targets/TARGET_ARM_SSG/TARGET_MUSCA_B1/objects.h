@@ -31,7 +31,6 @@
 extern "C" {
 #endif
 
-#if TARGET_MUSCA_B1_NS
 struct serial_s {
     struct uart_pl011_dev_t *uart_dev;
     UARTName uart_index;                /* UART device number */
@@ -39,7 +38,6 @@ struct serial_s {
     IRQn_Type rx_irq;
     IRQn_Type rx_timeout_irq;
 };
-#endif // TARGET_MUSCA_B1_NS
 
 #if DEVICE_FLASH
 struct flash_s {
@@ -53,6 +51,23 @@ struct trng_s {
     void *dummy;
 };
 #endif // DEVICE_TRNG
+
+#if DEVICE_I2C || DEVICE_I2CSLAVE
+enum byte_transfer_states {
+    BYTE_TRANSFER_STATE_NONE = 0,
+    BYTE_TRANSFER_STATE_START,
+    BYTE_TRANSFER_STATE_ADDRESS,
+    BYTE_TRANSFER_STATE_DATA,
+};
+
+struct i2c_s {
+    struct i2c_ip6510_dev_t *dev;
+    uint16_t last_address;
+    PinName sda;
+    PinName scl;
+    enum byte_transfer_states byte_state;
+};
+#endif
 
 #ifdef __cplusplus
 }

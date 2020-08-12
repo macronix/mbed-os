@@ -29,52 +29,7 @@
  * This is a default device configuration file with all peripherals enabled.
  */
 
-#if defined(TARGET_MUSCA_B1_S)
 
-/* ARM SCC */
-#define MUSCA_B1_SCC_S
-#define MUSCA_B1_SCC_DEV       MUSCA_B1_SCC_DEV_S
-
-/* ARM Memory Protection Controller (MPC) SIE 200 */
-#define MPC_ISRAM0_S
-#define MPC_ISRAM1_S
-#define MPC_ISRAM2_S
-#define MPC_ISRAM3_S
-#define MPC_CODE_SRAM_S
-#define MPC_CODE_SRAM_NS
-#define MPC_QSPI_S
-#define MPC_QSPI_NS
-#define MPC_EFLASH0_S
-#define MPC_EFLASH1_S
-
-/* ARM Peripheral Protection Controllers (PPC) */
-#define AHB_PPC0_S
-#define AHB_PPCEXP0_S
-#define AHB_PPCEXP1_S
-#define AHB_PPCEXP2_S
-#define AHB_PPCEXP3_S
-
-#define APB_PPC0_S
-#define APB_PPC1_S
-#define APB_PPCEXP0_S
-#define APB_PPCEXP1_S
-#define APB_PPCEXP2_S
-#define APB_PPCEXP3_S
-
-/* Cadence QSPI Flash Controller */
-#define QSPI_IP6514E_S
-
-/* MT25QL Flash memory library */
-#define MT25QL_S
-
-/* GPIO */
-#define GPIO0_CMSDK_S
-#define GPIO0_CMSDK_DEV        GPIO0_CMSDK_DEV_S
-
-#endif // defined(TARGET_MUSCA_B1_S)
-
-
-#if defined(TARGET_MUSCA_B1_NS)
 /*ARM UART Controller PL011*/
 
 #define UART0_PL011_NS
@@ -108,6 +63,12 @@
 #define GP_TIMER_FREQ_HZ       32768UL /* System Ref Clock */
 #define GP_TIMER_BIT_WIDTH     32U
 
+/* I2C IP6510 */
+#define I2C0_IP6510_NS
+#define I2C0_IP6510_DEV         I2C0_IP6510_DEV_NS
+#define I2C1_IP6510_NS
+#define I2C1_IP6510_DEV         I2C1_IP6510_DEV_NS
+
 /**
  * mbed usec high-resolution ticker configuration
  */
@@ -126,7 +87,6 @@
 #define USEC_REPORTED_FREQ_HZ            (TIMER_FREQ_HZ >> USEC_REPORTED_SHIFT)
 #define USEC_REPORTED_BITS               (32 - USEC_REPORTED_SHIFT)
 
-#define UART_DEFAULT_BAUD_RATE           9600U
-#endif // TARGET_MUSCA_B1_NS
+#define DEFAULT_UART_BAUDRATE            9600U
 
 #endif  /* __ARM_LTD_DEVICE_CFG_H__ */

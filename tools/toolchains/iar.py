@@ -20,7 +20,9 @@ from os import remove
 from os.path import join, splitext, exists
 from distutils.version import LooseVersion
 
-from tools.toolchains.mbed_toolchain import mbedToolchain, TOOLCHAIN_PATHS
+from tools.toolchains.mbed_toolchain import (
+    mbedToolchain, TOOLCHAIN_PATHS, should_replace_small_c_lib
+)
 from tools.utils import run_cmd
 
 class IAR(mbedToolchain):
@@ -54,15 +56,12 @@ class IAR(mbedToolchain):
             build_profile=build_profile
         )
 
-        self.check_c_lib_supported(target, "iar")
+        toolchain = "iar"
 
-        if target.is_TrustZone_secure_target:
-            # Enable compiler security extensions
-            self.flags["asm"] += ["--cmse"]
-            self.flags["common"] += ["--cmse"]
-            # Output secure import library
-            secure_file = join(build_dir, "cmse_lib.o")
-            self.flags["ld"] += ["--import_cmse_lib_out=%s" % secure_file]
+        if should_replace_small_c_lib(target, toolchain):
+            target.c_lib = "std"
+
+        self.check_c_lib_supported(target, "iar")
 
         if target.is_TrustZone_non_secure_target:
             # Add linking time preprocessor macro DOMAIN_NS

@@ -25,7 +25,7 @@
   * AHBCLK (MHz)        | 32
   * APB1CLK (MHz)       | 32
   * APB2CLK (MHz)       | 32
-  * USB capable         | NO // todo
+  * USB capable         | YES
   *-----------------------------------------------------------------------------
 **/
 
@@ -67,12 +67,16 @@ void SetSysClock(void)
 
     __HAL_RCC_HSEM_CLK_ENABLE();
 
+    /* This prevents the CPU2 (M0+) to configure RCC */
     while (LL_HSEM_1StepLock(HSEM, CFG_HW_RCC_SEMID));
 
     Config_HSE();
 
     __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_LOW);
     __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+
+    /* This prevents the CPU2 (M0+) to disable the HSI48 oscillator */
+    while (LL_HSEM_1StepLock(HSEM, CFG_HW_CLK48_CONFIG_SEMID));
 
     /* Initializes the CPU, AHB and APB busses clocks */
     RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_HSI48 | RCC_OSCILLATORTYPE_HSE | RCC_OSCILLATORTYPE_LSE;
@@ -97,13 +101,14 @@ void SetSysClock(void)
     RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
     RCC_ClkInitStruct.AHBCLK2Divider = RCC_SYSCLK_DIV1;
     RCC_ClkInitStruct.AHBCLK4Divider = RCC_SYSCLK_DIV1;
-    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK) {
+    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK) {
         error("HAL_RCC_ClockConfig error\n");
     }
 
-    /** Initializes the peripherals clocks
-    */
-    PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_SMPS | RCC_PERIPHCLK_RFWAKEUP | RCC_PERIPHCLK_RNG;
+    /* Initializes the peripherals clocks */
+    /* RNG needs to be configured like in M0 core, i.e. with HSI48 */
+    PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_SMPS | RCC_PERIPHCLK_RFWAKEUP | RCC_PERIPHCLK_RNG | RCC_PERIPHCLK_USB;
+    PeriphClkInitStruct.UsbClockSelection = RCC_USBCLKSOURCE_HSI48;
     PeriphClkInitStruct.RngClockSelection = RCC_RNGCLKSOURCE_HSI48;
     PeriphClkInitStruct.RFWakeUpClockSelection = RCC_RFWKPCLKSOURCE_LSE;
     PeriphClkInitStruct.SmpsClockSelection = RCC_SMPSCLKSOURCE_HSE;

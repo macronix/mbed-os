@@ -19,35 +19,15 @@ from __future__ import print_function
 import os
 import re
 import argparse
-from .imgtool_lib import keys
-from .imgtool_lib import image
-from .imgtool_lib import version
+from imgtool_lib import keys
+from imgtool_lib import image
+from imgtool_lib import version
 import sys
+import macro_parser
+import fileinput
 
 sign_bin_size_re = re.compile(r"^\s*RE_SIGN_BIN_SIZE\s*=\s*(.*)")
 image_load_address_re = re.compile(r"^\s*RE_IMAGE_LOAD_ADDRESS\s*=\s*(.*)")
-
-def find_load_address(args):
-    load_address_re = re.compile(r"^#define\sIMAGE_LOAD_ADDRESS\s+(0x[0-9a-fA-F]+)")
-
-    if os.path.isabs(args.layout):
-            configFile = args.layout
-    else:
-        scriptsDir = os.path.dirname(os.path.abspath(__file__))
-        configFile = os.path.join(scriptsDir, args.layout)
-
-    ramLoadAddress = None
-    with open(configFile, 'r') as flash_layout_file:
-        for line in flash_layout_file:
-            m = load_address_re.match(line)
-            if m is not None:
-                ramLoadAddress = int(m.group(1), 0)
-                print("**[INFO]** Writing load address from the macro in "
-                      "flash_layout.h to the image header.. "
-                       + hex(ramLoadAddress)
-                       + " (dec. " + str(ramLoadAddress) + ")")
-                break
-    return ramLoadAddress
 
 # Returns the last version number if present, or None if not
 def get_last_version(path):
@@ -131,7 +111,7 @@ def do_sign(args):
     else:
         sw_type = "NSPE_SPE"
 
-    pad_size = args.pad
+    pad_size = macro_parser.evaluate_macro(args.layout, sign_bin_size_re, 0, 1)
     img = image.Image.load(args.infile,
                            version=version_num,
                            header_size=args.header_size,
@@ -139,7 +119,7 @@ def do_sign(args):
                            included_header=args.included_header,
                            pad=pad_size)
     key = keys.load(args.key, args.public_key_format) if args.key else None
-    ram_load_address = find_load_address(args)
+    ram_load_address = macro_parser.evaluate_macro(args.layout, image_load_address_re, 0, 1)
     img.sign(sw_type, key, ram_load_address, args.dependencies)
 
     if pad_size:
@@ -147,10 +127,30 @@ def do_sign(args):
 
     img.save(args.outfile)
 
+def do_flash(args):
+    image_value_re = re.compile(r"^\s*"+args.macro+"\s*=\s*(.*)")
+    value = macro_parser.evaluate_macro(args.layout, image_value_re, 0, 1,
+                                        True)
+    if args.setting == 1:
+        begin_line="set "+args.begin
+    else:
+        begin_line=args.begin
+
+    for line in fileinput.input(args.infile, inplace=True):
+        if line.startswith(begin_line):
+            if args.division:
+                value = int(value/int(args.division))
+            if args.phexa == 0:
+                line = begin_line+"="+str(value)+"\n"
+            else:
+                line = begin_line+"="+hex(value)+"\n"
+        sys.stdout.write(line)
+
 subcmds = {
         'keygen': do_keygen,
         'getpub': do_getpub,
-        'sign': do_sign, }
+        'sign': do_sign,
+        'flash': do_flash, }
 
 
 def get_dependencies(text):
@@ -225,6 +225,23 @@ def args():
                       default=False, action='store_true')
     sign.add_argument("infile")
     sign.add_argument("outfile")
+
+    flash = subs.add_parser('flash', help='modify flash script')
+    flash.add_argument("infile")
+    flash.add_argument('-l', '--layout', required=True,
+                      help='Location of the file that contains preprocessed macros')
+    flash.add_argument('-m', '--macro', required =True,
+                      help='macro symbol string to grep in preprocessed file')
+    flash.add_argument('-b', '--begin', required=True,
+                      help='begin of line to replace ')
+    flash.add_argument('-s', '--setting',type=intparse,required=False,default=0,
+                      help='search for window batch set variable')
+    flash.add_argument('-d', '--division',
+                       required=False,type=intparse,default=0,
+                      help='search for window batch set variable')
+    flash.add_argument('-p', '--phexa',
+                       required=False,type=intparse,default=1,
+                      help='print value in hexa')
 
     args = parser.parse_args()
     if args.subcmd is None:

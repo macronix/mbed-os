@@ -1,6 +1,6 @@
 """
 mbed SDK
-Copyright (c) 2011-2013 ARM Limited
+Copyright (c) 2011-2020 ARM Limited
 SPDX-License-Identifier: Apache-2.0
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +22,9 @@ from os import getcwd, getenv
 from distutils.spawn import find_executable
 from distutils.version import LooseVersion
 
-from tools.toolchains.mbed_toolchain import mbedToolchain, TOOLCHAIN_PATHS
+from tools.toolchains.mbed_toolchain import (
+    mbedToolchain, TOOLCHAIN_PATHS, should_replace_small_c_lib
+)
 from tools.utils import run_cmd
 
 
@@ -54,7 +56,12 @@ class GCC(mbedToolchain):
         # Add flags for current size setting
         c_lib = "std"
         if hasattr(target, "c_lib"):
-            self.check_c_lib_supported(target, "gcc_arm")
+            toolchain = "gcc_arm"
+
+            if should_replace_small_c_lib(target, toolchain):
+                target.c_lib = "std"
+
+            self.check_c_lib_supported(target, toolchain)
             c_lib = target.c_lib
         elif hasattr(target, "default_build"):
             c_lib = target.default_build
@@ -85,16 +92,8 @@ class GCC(mbedToolchain):
                     self.flags["ld"].append(minimal_printf_wrap)
 
         self.cpu = []
-        if target.is_TrustZone_secure_target:
-            # Enable compiler security extensions
-            self.cpu.append("-mcmse")
-            # Output secure import library
-            self.flags["ld"].extend([
-                "-Wl,--cmse-implib",
-                "-Wl,--out-implib=%s" % join(build_dir, "cmse_lib.o")
-            ])
-
-        if target.is_TrustZone_non_secure_target:
+        # Enable DOMAIN_NS macro for TF-M NS targets
+        if target.is_TFM_target:
             # Add linking time preprocessor macro DOMAIN_NS
             # (DOMAIN_NS is passed to compiler and assembler via CORTEX_SYMBOLS
             # in mbedToolchain.get_symbols)

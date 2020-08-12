@@ -15,14 +15,13 @@
  * limitations under the License.
  */
 
-#include "SocketStats.h"
+#include "netsocket/SocketStats.h"
 
 #if MBED_CONF_NSAPI_SOCKET_STATS_ENABLED
 int SocketStats::get_entry_position(const Socket *const reference_id)
 {
     return 0;
 }
-#endif
 
 size_t SocketStats::mbed_stats_socket_get_each(mbed_stats_socket_t *stats, size_t count)
 {
@@ -62,3 +61,4 @@ void SocketStats::stats_update_recv_bytes(const Socket *const reference_id, size
 {
     return;
 }
+#endif

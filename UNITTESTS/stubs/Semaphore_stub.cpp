@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-#include "Semaphore.h"
+#include "rtos/Semaphore.h"
 #include "Semaphore_stub.h"
 
 int Semaphore_stub::wait_return_value = 0;
@@ -53,7 +53,17 @@ bool Semaphore::try_acquire_for(uint32_t millisec)
     return Semaphore_stub::acquire_return_value;
 }
 
+bool Semaphore::try_acquire_for(Kernel::Clock::duration_u32 rel_time)
+{
+    return Semaphore_stub::acquire_return_value;
+}
+
 bool Semaphore::try_acquire_until(uint64_t millisec)
+{
+    return Semaphore_stub::acquire_return_value;
+}
+
+bool Semaphore::try_acquire_until(Kernel::Clock::time_point abs_time)
 {
     return Semaphore_stub::acquire_return_value;
 }

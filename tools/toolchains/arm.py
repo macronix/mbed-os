@@ -26,9 +26,18 @@ from tempfile import mkstemp
 from shutil import rmtree
 from distutils.version import LooseVersion
 
-from tools.toolchains.mbed_toolchain import mbedToolchain, TOOLCHAIN_PATHS
+from tools.toolchains.mbed_toolchain import (
+    mbedToolchain, TOOLCHAIN_PATHS, should_replace_small_c_lib
+)
 from tools.utils import mkdir, NotSupportedException, run_cmd
 from tools.resources import FileRef
+
+ARMC5_MIGRATION_WARNING = (
+    "Warning: Arm Compiler 5 is no longer supported as of Mbed 6. "
+    "Please upgrade your environment to Arm Compiler 6 "
+    "which is free to use with Mbed OS. For more information, "
+    "please visit https://os.mbed.com/docs/mbed-os/latest/tools/index.html"
+)
 
 UARM_TOOLCHAIN_WARNING = (
     "Warning: We noticed that you are using uARM Toolchain either via --toolchain command line or default_toolchain option. "
@@ -70,7 +79,12 @@ class ARM(mbedToolchain):
             raise NotSupportedException(
                 "this compiler does not support the core %s" % target.core)
 
-        self.check_c_lib_supported(target, "arm")
+        toolchain = "arm"
+
+        if should_replace_small_c_lib(target, toolchain):
+            target.c_lib = "std"
+
+        self.check_c_lib_supported(target, toolchain)
 
         if (
             getattr(target, "default_toolchain", "ARM") == "uARM"
@@ -490,7 +504,8 @@ class ARM_MICRO(ARM):
             silent=False,
             extra_verbose=False,
             build_profile=None,
-            build_dir=None
+            build_dir=None,
+            coverage_patterns=None,
     ):
         target.default_toolchain = "uARM"
         if int(target.build_tools_metadata["version"]) > 0:
@@ -562,7 +577,12 @@ class ARMC6(ARM_STD):
                     "ARM/ARMC6 compiler support is required for ARMC6 build"
                 )
 
-        self.check_c_lib_supported(target, "arm")
+        toolchain = "arm"
+
+        if should_replace_small_c_lib(target, toolchain):
+            target.c_lib = "std"
+
+        self.check_c_lib_supported(target, toolchain)
 
         if (
             getattr(target, "default_toolchain", "ARMC6") == "uARM"
@@ -578,17 +598,6 @@ class ARMC6(ARM_STD):
                 self.flags['asm'].append("--library_type=microlib")
 
         self.check_and_add_minimal_printf(target)
-
-        if target.is_TrustZone_secure_target:
-            if kwargs.get('build_dir', False):
-                # Output secure import library
-                build_dir = kwargs['build_dir']
-                secure_file = join(build_dir, "cmse_lib.o")
-                self.flags["ld"] += ["--import_cmse_lib_out=%s" % secure_file]
-
-            # Enable compiler security extensions
-            self.flags['cxx'].append("-mcmse")
-            self.flags['c'].append("-mcmse")
 
         if target.is_TrustZone_non_secure_target:
             # Add linking time preprocessor macro DOMAIN_NS

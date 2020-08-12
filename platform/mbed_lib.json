@@ -3,12 +3,12 @@
     "config": {
         "stdio-convert-newlines": {
             "help": "Enable conversion to standard newlines on stdin/stdout/stderr",
-            "value": false
+            "value": true
         },
 
         "stdio-convert-tty-newlines": {
             "help": "Enable conversion to standard newlines on any tty FILE stream",
-            "value": false
+            "value": true
         },
 
         "stdio-buffered-serial": {
@@ -119,8 +119,8 @@
             "value": 8
         },
         "callback-nontrivial": {
-            "help": "Enables support for non-trivial callable objects in Callback. Can be disabled to save ROM if no-one is using non-trivial types. Changing this value may cause incompatibility with pre-built binaries.",
-            "value": true
+            "help": "Enables support for non-trivial callable objects in Callback. Can be disabled to save ROM if no-one is using non-trivial types. Changing this value may cause incompatibility with pre-built binaries. Choice not available with IAR, value forced to true.",
+            "value": false
         },
         "callback-comparable": {
             "help": "Enables support for comparing two Callbacks. See notes on operator== for limitations. Can be disabled to save ROM if not required.",
@@ -156,18 +156,6 @@
         }
     },
     "target_overrides": {
-        "ARM_MUSCA_A1_NS": {
-            "stdio-baud-rate": 115200
-        },
-        "ARM_MUSCA_A1_S": {
-            "stdio-baud-rate": 115200
-        },
-        "ARM_MUSCA_B1_NS": {
-            "stdio-baud-rate": 115200
-        },
-        "ARM_MUSCA_B1_S": {
-            "stdio-baud-rate": 115200
-        },
         "EFM32": {
             "stdio-baud-rate": 115200
         },
@@ -209,14 +197,6 @@
             "crash-capture-enabled": true,
             "fatal-error-auto-reboot-enabled": true
         },
-        "UBLOX_EVK_ODIN_W2": {
-            "crash-capture-enabled": true,
-            "fatal-error-auto-reboot-enabled": true
-        },
-        "UBLOX_C030_U201": {
-            "crash-capture-enabled": true,
-            "fatal-error-auto-reboot-enabled": true
-        },
         "NUMAKER_PFM_M487": {
             "crash-capture-enabled": true,
             "fatal-error-auto-reboot-enabled": true
@@ -237,10 +217,6 @@
             "fatal-error-auto-reboot-enabled": true
         },
         "NUCLEO_F411RE": {
-            "crash-capture-enabled": true,
-            "fatal-error-auto-reboot-enabled": true
-        },
-        "DISCO_F407VG": {
             "crash-capture-enabled": true,
             "fatal-error-auto-reboot-enabled": true
         },

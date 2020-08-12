@@ -42,12 +42,14 @@ from .paths import (MBED_CMSIS_PATH, MBED_TARGETS_PATH, MBED_LIBRARIES,
                     MBED_CONFIG_FILE, MBED_LIBRARIES_DRIVERS,
                     MBED_LIBRARIES_PLATFORM, MBED_LIBRARIES_HAL,
                     BUILD_DIR)
-from .resources import Resources, FileType, FileRef, PsaManifestResourceFilter
+from .resources import Resources, FileType, FileRef
 from .notifier.mock import MockNotifier
 from .targets import TARGET_NAMES, TARGET_MAP, CORE_ARCH, Target
 from .libraries import Library
 from .toolchains import TOOLCHAIN_CLASSES, TOOLCHAIN_PATHS
+from .toolchains.arm import ARMC5_MIGRATION_WARNING
 from .toolchains.arm import UARM_TOOLCHAIN_WARNING
+from .toolchains.mbed_toolchain import should_replace_small_c_lib
 from .config import Config
 
 RELEASE_VERSIONS = ['2', '5']
@@ -205,6 +207,7 @@ def get_toolchain_name(target, toolchain_name):
 
     return toolchain_name
 
+
 def find_valid_toolchain(target, toolchain):
     """Given a target and toolchain, get the names for the appropriate
     toolchain to use. The environment is also checked to see if the corresponding
@@ -242,14 +245,21 @@ def find_valid_toolchain(target, toolchain):
             ).format(toolchain_name, search_path)
         else:            
             if toolchain_name == "ARMC5":
-                raise NotSupportedException(
-                    "Arm Compiler 5 is no longer supported, please upgrade to Arm Compiler 6."
-                )                
+                end_warnings.append(ARMC5_MIGRATION_WARNING)
             if (
-                toolchain_name in ["uARM", "ARMC6"] 
+                toolchain_name in ["uARM", "ARMC5", "ARMC6"] 
                 and "uARM" in {toolchain_name, target.default_toolchain}
             ):
                 end_warnings.append(UARM_TOOLCHAIN_WARNING)
+
+            if should_replace_small_c_lib(target, toolchain):
+                warning = (
+                    "Warning: We noticed that target.c_lib is set to small.\n"
+                    "As the {} target does not support a small C library for the {} toolchain,\n"
+                    "we are using the standard C library instead. "
+                ).format(target.name, toolchain)
+                end_warnings.append(warning)
+
             return toolchain_name, internal_tc_name, end_warnings
     else:
         if last_error:
@@ -337,12 +347,13 @@ def is_official_target(target_name, version):
                     ("following toolchains: %s" %
                      ", ".join(sorted(supported_toolchains)))
 
-            elif not target.c_lib == 'std':
+            elif target.c_lib not in ['std', 'small']:
                 result = False
-                reason = ("Target '%s' must set the " % target.name) + \
-                    ("'c_lib' to 'std' to be included in the ") + \
-                    ("mbed OS 5.0 official release." + linesep) + \
-                    ("Currently it is set to '%s'" % target.c_lib)
+                reason = (
+                    "'target.c_lib' for the '{}' target must be set to 'std' or"
+                    " 'small'.{}"
+                    "It is currently set to '{}'"
+                ).format(target.name, linesep, target.c_lib)
 
         else:
             result = False
@@ -388,7 +399,7 @@ def transform_release_toolchains(target, version):
         else:
             return target.supported_toolchains
 
-def get_mbed_official_release(version):
+def get_mbed_official_release(version, profile=None):
     """ Given a release version string, return a tuple that contains a target
     and the supported toolchains for that release.
     Ex. Given '2', return (('LPC1768', ('ARM', 'GCC_ARM')),
@@ -399,6 +410,14 @@ def get_mbed_official_release(version):
               RELEASE_VERSIONS
     """
 
+    # we ignore version for Mbed 6 as all targets in targets.json file are being supported
+    # if someone passes 2, we return empty tuple, if 5, we keep the behavior the same as 
+    # release version is deprecated and all targets are being supported that are present
+    # in targets.json file
+
+    if version == '2':
+        return tuple(tuple([]))
+
     mbed_official_release = (
         tuple(
             tuple(
@@ -408,17 +427,9 @@ def get_mbed_official_release(version):
                         TARGET_MAP[target], version))
                 ]
             ) for target in TARGET_NAMES \
-            if (hasattr(TARGET_MAP[target], 'release_versions')
-                and version in TARGET_MAP[target].release_versions)
-                and not Target.get_target(target).is_PSA_secure_target
+                if not profile or profile in TARGET_MAP[target].supported_application_profiles
         )
     )
-
-    for target in mbed_official_release:
-        is_official, reason = is_official_target(target[0], version)
-
-        if not is_official:
-            raise InvalidReleaseTargetException(reason)
 
     return mbed_official_release
 
@@ -612,11 +623,7 @@ def build_project(src_paths, build_path, target, toolchain_name,
         into_dir, extra_artifacts = toolchain.config.deliver_into()
         if into_dir:
             copy_when_different(res[0], into_dir)
-            if not extra_artifacts:
-                if toolchain.target.is_TrustZone_secure_target:
-                    cmse_lib = join(dirname(res[0]), "cmse_lib.o")
-                    copy_when_different(cmse_lib, into_dir)
-            else:
+            if extra_artifacts:
                 for tc, art in extra_artifacts:
                     if toolchain_name == tc:
                         copy_when_different(join(build_path, art), into_dir)
@@ -762,7 +769,6 @@ def build_library(src_paths, build_path, target, toolchain_name,
         res = Resources(notify).scan_with_toolchain(
             src_paths, toolchain, dependencies_paths, inc_dirs=inc_dirs)
         res.filter(resource_filter)
-        res.filter(PsaManifestResourceFilter())
 
         # Copy headers, objects and static libraries - all files needed for
         # static lib
