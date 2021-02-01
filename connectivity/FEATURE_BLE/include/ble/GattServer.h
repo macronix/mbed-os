@@ -20,18 +20,23 @@
 #ifndef MBED_GATT_SERVER_H__
 #define MBED_GATT_SERVER_H__
 
-#include "CallChainOfFunctionPointersWithContext.h"
+#include "platform/mbed_toolchain.h"
 
-#include "ble/common/ble/GattService.h"
-#include "ble/common/ble/GattAttribute.h"
-#include "ble/common/ble/GattServerEvents.h"
-#include "ble/common/ble/GattCallbackParamTypes.h"
+#include "ble/common/CallChainOfFunctionPointersWithContext.h"
+#include "ble/common/blecommon.h"
 
-#include "ble/common/ble/blecommon.h"
-#include "ble/Gap.h"
-#include "SecurityManager.h"
+#include "ble/gatt/GattService.h"
+#include "ble/gatt/GattAttribute.h"
+#include "ble/gatt/GattCallbackParamTypes.h"
 
 namespace ble {
+
+#if !defined(DOXYGEN_ONLY)
+namespace impl {
+class GattServer;
+}
+#endif // !defined(DOXYGEN_ONLY)
+
 
 /**
  * @addtogroup ble
@@ -94,9 +99,6 @@ namespace ble {
  * Characteristic Value Notification and Characteristic Value Indication when
  * the nature of the server initiated is not relevant.
  */
-#if !defined(DOXYGEN_ONLY)
-namespace interface {
-#endif // !defined(DOXYGEN_ONLY)
 class GattServer {
 public:
     /**
@@ -118,14 +120,90 @@ public:
             (void)connectionHandle;
             (void)attMtuSize;
         }
+
+        /**
+         * Function invoked when the server has sent data to a client as
+         * part of a notification/indication.
+         *
+         * @note params has a temporary scope and should be copied by the
+         * application if needed later
+         */
+        virtual void onDataSent(const GattDataSentCallbackParams &params) {
+            (void)params;
+        }
+
+        /**
+         * Function invoked when a client writes an attribute
+         *
+         * @note params has a temporary scope and should be copied by the
+         * application if needed later
+         */
+        virtual void onDataWritten(const GattWriteCallbackParams &params) {
+            (void)params;
+        }
+
+        /**
+         * Function invoked when a client reads an attribute
+         *
+         * @note  This functionality may not be available on all underlying stacks.
+         * Application code may work around that limitation by monitoring read
+         * requests instead of read events.
+         *
+         * @note params has a temporary scope and should be copied by the
+         * application if needed later
+         *
+         * @see GattCharacteristic::setReadAuthorizationCallback()
+         * @see isOnDataReadAvailable().
+         */
+        virtual void onDataRead(const GattReadCallbackParams &params) {
+            (void)params;
+        }
+
+        /**
+         * Function invoked when the GattServer instance is about
+         * to be shut down. This can result in a call to reset() or BLE::reset().
+         */
+        virtual void onShutdown(const GattServer &server) {
+            (void)server;
+        }
+
+        /**
+         * Function invoked when the client has subscribed to characteristic updates
+         *
+         * @note params has a temporary scope and should be copied by the
+         * application if needed later
+         */
+        virtual void onUpdatesEnabled(const GattUpdatesEnabledCallbackParams &params) {
+            (void)params;
+        }
+
+        /**
+         * Function invoked when the client has unsubscribed to characteristic updates
+         *
+         * @note params has a temporary scope and should be copied by the
+         * application if needed later
+         */
+        virtual void onUpdatesDisabled(const GattUpdatesDisabledCallbackParams &params) {
+            (void)params;
+        }
+
+        /**
+         * Function invoked when an ACK has been received for an
+         * indication sent to the client.
+         *
+         * @note params has a temporary scope and should be copied by the
+         * application if needed later
+         */
+        virtual void onConfirmationReceived(const GattConfirmationReceivedCallbackParams &params) {
+            (void)params;
+        }
+
     protected:
         /**
          * Prevent polymorphic deletion and avoid unnecessary virtual destructor
          * as the GattServer class will never delete the instance it contains.
          */
-        ~EventHandler()
-        {
-        }
+        ~EventHandler() = default;
     };
 
     /**
@@ -206,6 +284,12 @@ public:
      * module to signal events back to the application.
      *
      * @param handler Application implementation of an EventHandler.
+     *
+     * @note Multiple discrete EventHandler instances may be used by adding them
+     * to a ChainableGattServerEventHandler and then setting the chain as the primary
+     * GattServer EventHandler using this function.
+     *
+     * @see ChainableGattServerEventHandler
      */
     void setEventHandler(EventHandler *handler);
 
@@ -221,7 +305,7 @@ public:
      *
      * @return BLE_ERROR_NONE on success.
      */
-    ble_error_t reset(void);
+    ble_error_t reset();
 
     /**
      * Add a service declaration to the local attribute server table.
@@ -232,14 +316,18 @@ public:
      *
      * The process assigns a unique attribute handle to all the elements added
      * into the attribute table. This handle is an ID that must be used for
-     * subsequent interractions with the elements.
+     * subsequent interactions with the elements.
      *
      * @note There is no mirror function that removes a single service.
      * Application code can remove all the registered services by calling
      * reset().
      *
-     * @attention Service, characteristics and descriptors objects registered
-     * within the GattServer must remain reachable until reset() is called.
+     * @attention GattServer allocates its own memory for all the attributes.
+     * The GattServer will set the handles on the service passed in and the
+     * characteristics it contains. You may record the handles you want to
+     * interact with in the future. After that the service and characteristics
+     * you passed in as the parameter may be freed. To write to the GattServer
+     * instances of the characteristics you have to use the saved handles.
      *
      * @param[in] service The service to be added; attribute handle of services,
      * characteristic and characteristic descriptors are updated by the
@@ -403,6 +491,8 @@ public:
      * @note It is possible to chain together multiple onDataSent callbacks
      * (potentially from different modules of an application).
      */
+    MBED_DEPRECATED_SINCE("mbed-os-6.3.0", "Individual callback-registering functions have"
+                          "been replaced by GattServer::setEventHandler. Use that function instead.")
     void onDataSent(const DataSentCallback_t &callback);
 
     /**
@@ -415,13 +505,20 @@ public:
      * function.
      */
     template <typename T>
-    void onDataSent(T *objPtr, void (T::*memberPtr)(unsigned count));
+    MBED_DEPRECATED_SINCE("mbed-os-6.3.0", "Individual callback-registering functions have"
+                          "been replaced by GattServer::setEventHandler. Use that function instead.")
+    void onDataSent(T *objPtr, void (T::*memberPtr)(unsigned count))
+    {
+        onDataSent({objPtr, memberPtr});
+    }
 
     /**
      * Access the callchain of data sent event handlers.
      *
      * @return A reference to the DATA_SENT event callback chain.
      */
+    MBED_DEPRECATED_SINCE("mbed-os-6.3.0", "Individual callback-registering functions have"
+                          "been replaced by GattServer::setEventHandler. Use that function instead.")
     DataSentCallbackChain_t &onDataSent();
 
     /**
@@ -433,6 +530,8 @@ public:
      * @attention It is possible to set multiple event handlers. Registered
      * handlers may be removed with onDataWritten().detach(callback).
      */
+    MBED_DEPRECATED_SINCE("mbed-os-6.3.0", "Individual callback-registering functions have"
+                          "been replaced by GattServer::setEventHandler. Use that function instead.")
     void onDataWritten(const DataWrittenCallback_t &callback);
 
     /**
@@ -445,10 +544,15 @@ public:
      * function.
      */
     template <typename T>
+    MBED_DEPRECATED_SINCE("mbed-os-6.3.0", "Individual callback-registering functions have"
+                          "been replaced by GattServer::setEventHandler. Use that function instead.")
     void onDataWritten(
         T *objPtr,
         void (T::*memberPtr)(const GattWriteCallbackParams *context)
-    );
+    )
+    {
+        onDataWritten({objPtr, memberPtr});
+    }
 
     /**
      * Access the callchain of data written event handlers.
@@ -461,6 +565,8 @@ public:
      * @note It is possible to unregister callbacks using
      * onDataWritten().detach(callback).
      */
+    MBED_DEPRECATED_SINCE("mbed-os-6.3.0", "Individual callback-registering functions have"
+                          "been replaced by GattServer::setEventHandler. Use that function instead.")
     DataWrittenCallbackChain_t &onDataWritten();
 
     /**
@@ -481,6 +587,8 @@ public:
      * @attention It is possible to set multiple event handlers. Registered
      * handlers may be removed with onDataRead().detach(callback).
      */
+    MBED_DEPRECATED_SINCE("mbed-os-6.3.0", "Individual callback-registering functions have"
+                          "been replaced by GattServer::setEventHandler. Use that function instead.")
     ble_error_t onDataRead(const DataReadCallback_t &callback);
 
     /**
@@ -492,10 +600,15 @@ public:
      * function.
      */
     template <typename T>
+    MBED_DEPRECATED_SINCE("mbed-os-6.3.0", "Individual callback-registering functions have"
+                          "been replaced by GattServer::setEventHandler. Use that function instead.")
     ble_error_t onDataRead(
         T *objPtr,
         void (T::*memberPtr)(const GattReadCallbackParams *context)
-    );
+    )
+    {
+        return onDataRead({objPtr, memberPtr});
+    }
 
     /**
      * Access the callchain of data read event handlers.
@@ -508,6 +621,8 @@ public:
      * @note It is possible to unregister callbacks using
      * onDataRead().detach(callback).
      */
+    MBED_DEPRECATED_SINCE("mbed-os-6.3.0", "Individual callback-registering functions have"
+                          "been replaced by GattServer::setEventHandler. Use that function instead.")
     DataReadCallbackChain_t &onDataRead();
 
     /**
@@ -523,6 +638,8 @@ public:
      * @note It is possible to unregister a callback using
      * onShutdown().detach(callback)
      */
+    MBED_DEPRECATED_SINCE("mbed-os-6.3.0", "Individual callback-registering functions have"
+                          "been replaced by GattServer::setEventHandler. Use that function instead.")
     void onShutdown(const GattServerShutdownCallback_t &callback);
 
     /**
@@ -537,7 +654,12 @@ public:
      * function.
      */
     template <typename T>
-    void onShutdown(T *objPtr, void (T::*memberPtr)(const GattServer *));
+    MBED_DEPRECATED_SINCE("mbed-os-6.3.0", "Individual callback-registering functions have"
+                          "been replaced by GattServer::setEventHandler. Use that function instead.")
+    void onShutdown(T *objPtr, void (T::*memberPtr)(const GattServer *))
+    {
+        onShutdown({objPtr, memberPtr});
+    }
 
     /**
      * Access the callchain of shutdown event handlers.
@@ -550,6 +672,8 @@ public:
      * @note It is possible to unregister callbacks using
      * onShutdown().detach(callback).
      */
+    MBED_DEPRECATED_SINCE("mbed-os-6.3.0", "Individual callback-registering functions have"
+                          "been replaced by GattServer::setEventHandler. Use that function instead.")
     GattServerShutdownCallbackChain_t& onShutdown();
 
     /**
@@ -558,6 +682,8 @@ public:
      *
      * @param[in] callback Event handler being registered.
      */
+    MBED_DEPRECATED_SINCE("mbed-os-6.3.0", "Individual callback-registering functions have"
+                          "been replaced by GattServer::setEventHandler. Use that function instead.")
     void onUpdatesEnabled(EventCallback_t callback);
 
     /**
@@ -566,6 +692,8 @@ public:
      *
      * @param[in] callback Event handler being registered.
      */
+    MBED_DEPRECATED_SINCE("mbed-os-6.3.0", "Individual callback-registering functions have"
+                          "been replaced by GattServer::setEventHandler. Use that function instead.")
     void onUpdatesDisabled(EventCallback_t callback);
 
     /**
@@ -576,74 +704,18 @@ public:
      *
      * @param[in] callback Event handler being registered.
      */
+    MBED_DEPRECATED_SINCE("mbed-os-6.3.0", "Individual callback-registering functions have"
+                          "been replaced by GattServer::setEventHandler. Use that function instead.")
     void onConfirmationReceived(EventCallback_t callback);
 
-    /* Entry points for the underlying stack to report events back to the user. */
-protected:
-    /**
-     * Helper function that notifies all registered handlers of an occurrence
-     * of a data written event.
-     *
-     * @attention Vendor implementation must invoke this function after one of
-     * the GattServer attributes has been written.
-     *
-     * @param[in] params The data written parameters passed to the registered
-     * handlers.
-     */
-    void handleDataWrittenEvent(const GattWriteCallbackParams *params);
+#if !defined(DOXYGEN_ONLY)
+    GattServer(impl::GattServer* impl) : impl(impl) {}
+    GattServer(const GattServer&) = delete;
+    GattServer& operator=(const GattServer&) = delete;
+#endif // !defined(DOXYGEN_ONLY)
 
-    /**
-     * Helper function that notifies all registered handlers of an occurrence
-     * of a data read event.
-     *
-     * @attention Vendor implementation must invoke this function after one of
-     * the GattServer attributes has been read.
-     *
-     * @param[in] params The data read parameters passed to the registered
-     * handlers.
-     */
-    void handleDataReadEvent(const GattReadCallbackParams *params);
-
-    /**
-     * Helper function that notifies the registered handler of an occurrence
-     * of updates enabled, updates disabled or confirmation received events.
-     *
-     * @attention Vendor implementation must invoke this function when a client
-     * subscribes to characteristic updates, unsubscribes from characteristic
-     * updates or a notification confirmation has been received.
-     *
-     * @param[in] type The type of event that occurred.
-     * @param[in] attributeHandle The handle of the attribute concerned by the
-     * event.
-     */
-    void handleEvent(
-        GattServerEvents::gattEvent_e type,
-        GattAttribute::Handle_t attributeHandle
-    );
-
-    /**
-     * Helper function that notifies all registered handlers of an occurrence
-     * of a data sent event.
-     *
-     * @attention Vendor implementation must invoke this function after the
-     * emission of a notification or an indication.
-     *
-     * @param[in] count Number of packets sent.
-     */
-    void handleDataSentEvent(unsigned count);
-
-    /**
-     * Get preferred connection paramters.
-     *
-     */
-    Gap::PreferredConnectionParams_t getPreferredConnectionParams();
-
-    /**
-     * Set preferred connection parameters.
-     *
-     * @param[in] params Preferred connection parameter values to set.
-     */
-    void setPreferredConnectionParams(const Gap::PreferredConnectionParams_t& params);
+private:
+    impl::GattServer *impl;
 };
 
 /**
@@ -652,14 +724,7 @@ protected:
  * @}
  */
 
-#if !defined(DOXYGEN_ONLY)
-} // namespace interface
-#endif // !defined(DOXYGEN_ONLY)
 } // ble
-
-/* This includes the concrete class implementation, to provide a an alternative API implementation
- * disable ble-api-implementation and place your header in a path with the same structure */
-#include "ble/internal/GattServerImpl.h"
 
 /** @deprecated Use the namespaced ble::GattServer instead of the global GattServer. */
 using ble::GattServer;

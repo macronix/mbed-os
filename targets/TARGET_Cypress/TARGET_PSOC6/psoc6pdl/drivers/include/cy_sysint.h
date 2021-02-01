@@ -1,6 +1,6 @@
 /***************************************************************************//**
 * \file cy_sysint.h
-* \version 1.30.1
+* \version 1.50
 *
 * \brief
 * Provides an API declaration of the SysInt driver
@@ -149,26 +149,21 @@
 *
 * Refer to the technical reference manual (TRM) and the device datasheet.
 *
-* \section group_sysint_MISRA MISRA-C Compliance
-* <table class="doxtable">
-*   <tr>
-*     <th>MISRA Rule</th>
-*     <th>Rule Class (Required/Advisory)</th>
-*     <th>Rule Description</th>
-*     <th>Description of Deviation(s)</th>
-*   </tr>
-*   <tr>
-*     <td>8.12</td>
-*     <td>R</td>
-*     <td>Array declared with unknown size.</td>
-*     <td>
-*         __Vectors and __ramVectors arrays can have the different size depend on the selected device.</td>
-*   </tr>
-* </table>
-*
 * \section group_sysint_changelog Changelog
 * <table class="doxtable">
 *   <tr><th>Version</th><th>Changes</th><th>Reason for Change</th></tr>
+*   <tr>
+*     <td>1.50</td>
+*     <td>Fixed MISRA 2012 violations.</td>
+*     <td>MISRA 2012 compliance.</td>
+*   </tr>
+*   <tr>
+*     <td>1.40</td>
+*     <td>Updated the CY_SYSINT_IS_PC_0 macro to access the protected register
+*         for the secure CYB06xx7 devices via \ref group_pra driver.
+*    </td>
+*     <td>Added PSoC 64 devices support.</td>
+*   </tr>
 *   <tr>
 *     <td>1.30.1</td>
 *     <td>Minor documentation updates.</td>
@@ -240,6 +235,9 @@
 #include <stddef.h>
 #include "cy_device.h"
 #include "cy_syslib.h"
+#if defined(CY_DEVICE_SECURE) && defined(CY_DEVICE_PSOC6ABLE2)
+    #include "cy_pra.h"
+#endif /* defined(CY_DEVICE_SECURE) && defined(CY_DEVICE_PSOC6ABLE2) */
 #include "cy_device_headers.h"
 
 #if defined(__cplusplus)
@@ -256,8 +254,11 @@ extern "C" {
 * \{
 */
 
+CY_MISRA_DEVIATE_BLOCK_START('MISRA C-2012 Rule 8.6', 2, \
+'Coverity does not check the .S assembly files, the definition is a part of startup_psoc6_04_cm4.s file.');
 extern const cy_israddress __Vectors[]; /**< Vector table in flash */
 extern cy_israddress __ramVectors[]; /**< Relocated vector table in SRAM */
+CY_MISRA_BLOCK_END('MISRA C-2012 Rule 8.6');
 
 /** \} group_sysint_globals */
 
@@ -275,7 +276,7 @@ extern cy_israddress __ramVectors[]; /**< Relocated vector table in SRAM */
 #define CY_SYSINT_DRV_VERSION_MAJOR    1
 
 /** Driver minor version */
-#define CY_SYSINT_DRV_VERSION_MINOR    30
+#define CY_SYSINT_DRV_VERSION_MINOR    50
 
 /** SysInt driver ID */
 #define CY_SYSINT_ID CY_PDL_DRV_ID     (0x15U)
@@ -370,7 +371,14 @@ typedef struct {
                                                            ((nmiNum) == CY_SYSINT_NMI2) || \
                                                            ((nmiNum) == CY_SYSINT_NMI3) || \
                                                            ((nmiNum) == CY_SYSINT_NMI4))
-    #define CY_SYSINT_IS_PC_0                             (0UL == _FLD2VAL(PROT_MPU_MS_CTL_PC, PROT_MPU_MS_CTL(0U)))
+
+    #if CY_CPU_CORTEX_M4 && defined(CY_DEVICE_SECURE) && defined(CY_DEVICE_PSOC6ABLE2)
+        #define CY_SYSINT_IS_PC_0                         (0UL == _FLD2VAL(PROT_MPU_MS_CTL_PC, \
+                                                           CY_PRA_REG32_GET(CY_PRA_INDX_PROT_MPU_MS_CTL)))
+    #else
+        #define CY_SYSINT_IS_PC_0                         (0UL == _FLD2VAL(PROT_MPU_MS_CTL_PC, PROT_MPU_MS_CTL(0U)))
+    #endif
+
 /** \endcond */
 
 

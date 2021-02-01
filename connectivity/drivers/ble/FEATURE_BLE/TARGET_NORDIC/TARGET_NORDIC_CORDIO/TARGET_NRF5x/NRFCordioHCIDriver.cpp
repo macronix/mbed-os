@@ -1,5 +1,6 @@
 /* mbed Microcontroller Library
  * Copyright (c) 2017-2017 ARM Limited
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,26 +54,6 @@
 #endif
 
 using namespace ble;
-
-/*! \brief      Memory that should be reserved for the stack. */
-#if defined(NRF52840_XXAA)
-
-#undef MBED_CONF_CORDIO_LL_EXTENDED_ADVERTISING_SIZE
-#undef MBED_CONF_CORDIO_LL_MAX_ACL_SIZE
-#undef MBED_CONF_CORDIO_LL_TX_BUFFERS
-#undef MBED_CONF_CORDIO_LL_PHY_CODED_SUPPORT
-#define MBED_CONF_CORDIO_LL_EXTENDED_ADVERTISING_SIZE MBED_CONF_CORDIO_LL_NRF52840_EXTENDED_ADVERTISING_SIZE
-#define MBED_CONF_CORDIO_LL_MAX_ACL_SIZE              MBED_CONF_CORDIO_LL_NRF52840_MAX_ACL_SIZE
-#define MBED_CONF_CORDIO_LL_TX_BUFFERS                MBED_CONF_CORDIO_LL_NRF52840_TX_BUFFERS
-#define MBED_CONF_CORDIO_LL_PHY_CODED_SUPPORT         MBED_CONF_CORDIO_LL_NRF52840_PHY_CODED_SUPPORT
-
-#define CORDIO_LL_MEMORY_FOOTPRINT  16056UL
-
-#else
-
-#define CORDIO_LL_MEMORY_FOOTPRINT  12500UL
-
-#endif
 
 /*! \brief      Typical implementation revision number (LlRtCfg_t::implRev). */
 #define LL_IMPL_REV             0x2303
@@ -201,7 +182,7 @@ extern "C" void TIMER2_IRQHandler(void);
 
 NRFCordioHCIDriver::NRFCordioHCIDriver(CordioHCITransportDriver& transport_driver) : CordioHCIDriver(transport_driver), _is_init(false), _stack_buffer(NULL)
 {
-    _stack_buffer = (uint8_t*)malloc(CORDIO_LL_MEMORY_FOOTPRINT);
+    _stack_buffer = (uint8_t*)malloc(MBED_CONF_CORDIO_NORDIC_LL_HCI_DRIVER_BUFFER_SIZE);
     MBED_ASSERT(_stack_buffer != NULL);
 }
 
@@ -232,11 +213,7 @@ NRFCordioHCIDriver::~NRFCordioHCIDriver()
 ble::buf_pool_desc_t NRFCordioHCIDriver::get_buffer_pool_description()
 {
     static union {
-        #if defined(NRF52840_XXAA)
-        uint8_t buffer[ 4900 ];
-        #else
-        uint8_t buffer[ 4900 ];
-        #endif
+        uint8_t buffer[MBED_CONF_CORDIO_NORDIC_LL_WSF_POOL_BUFFER_SIZE];
         uint64_t align;
     };
     static const wsfBufPoolDesc_t pool_desc[] = {
@@ -267,7 +244,7 @@ void NRFCordioHCIDriver::do_initialize()
         .plSizeCfg    = 4,
         .pLlRtCfg     = &_ll_cfg,
         .pFreeMem     = _stack_buffer,
-        .freeMemAvail = CORDIO_LL_MEMORY_FOOTPRINT
+        .freeMemAvail = MBED_CONF_CORDIO_NORDIC_LL_HCI_DRIVER_BUFFER_SIZE
     };
 
     /* switch to more accurate 16 MHz crystal oscillator (system starts up using 16MHz RC oscillator) */
@@ -313,12 +290,12 @@ void NRFCordioHCIDriver::do_initialize()
     // WARNING
     // If a submodule does not have enough space to allocate its memory from buffer, it will still allocate its memory (and do a buffer overflow) and return 0 (as in 0 byte used)
     // however that method will still continue which will lead to undefined behaviour
-    // So whenever a change of configuration is done, it's a good idea to set CORDIO_LL_MEMORY_FOOTPRINT to a high value and then reduce accordingly
+    // So whenever a change of configuration is done, it's a good idea to set MBED_CONF_CORDIO_NORDIC_LL_HCI_DRIVER_BUFFER_SIZE to a high value and then reduce accordingly
     uint32_t mem_used = LlInitControllerInit(&ll_init_cfg);
-    if( mem_used < CORDIO_LL_MEMORY_FOOTPRINT )
+    if( mem_used < MBED_CONF_CORDIO_NORDIC_LL_HCI_DRIVER_BUFFER_SIZE )
     {
         // Sub-optimal, give warning
-        DBG_WARN("NRFCordioHCIDriver: CORDIO_LL_MEMORY_FOOTPRINT can be reduced to %lu instead of %lu", mem_used, CORDIO_LL_MEMORY_FOOTPRINT);
+        DBG_WARN("NRFCordioHCIDriver: MBED_CONF_CORDIO_NORDIC_LL_HCI_DRIVER_BUFFER_SIZE can be reduced to %lu instead of %lu", mem_used, MBED_CONF_CORDIO_NORDIC_LL_HCI_DRIVER_BUFFER_SIZE);
     }
 
     // BD Addr
@@ -327,8 +304,8 @@ void NRFCordioHCIDriver::do_initialize()
     /* Load address from nRF configuration. */
     uint64_t address_int = (((uint64_t)NRF_FICR->DEVICEADDR[0]) <<  0) |
                            (((uint64_t)NRF_FICR->DEVICEADDR[1]) << 32);
-    unsigned int i = 0;
-    while (i++ < BDA_ADDR_LEN) {
+
+    for (unsigned int i = 0; i < BDA_ADDR_LEN; ++i) {
         bd_addr[i] = address_int >> (i * 8);
     }
 
@@ -349,8 +326,10 @@ void NRFCordioHCIDriver::do_terminate()
 
 void NRFCordioHCIDriver::start_reset_sequence()
 {
+#if BLE_FEATURE_EXTENDED_ADVERTISING
     // Make sure extended adv is init
     DmExtAdvInit();
+#endif // BLE_FEATURE_EXTENDED_ADVERTISING
 
     CordioHCIDriver::start_reset_sequence();
 }

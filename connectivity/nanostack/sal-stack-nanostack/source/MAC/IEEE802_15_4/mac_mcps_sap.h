@@ -35,6 +35,8 @@ struct arm_phy_sap_msg_s;
 struct mcps_purge_s;
 struct mcps_data_req_ie_list;
 struct channel_list_s;
+struct mcps_enhanced_frame_response_s;
+struct mac_pre_parsed_frame_s;
 
 /** Address types */
 typedef enum {
@@ -99,6 +101,8 @@ void mcps_sap_pd_req_queue_write(struct protocol_interface_rf_mac_setup *rf_mac_
  */
 mac_pre_parsed_frame_t *mcps_sap_pre_parsed_frame_buffer_get(const uint8_t *data_ptr, uint16_t frame_length);
 
+mac_pre_parsed_frame_t *mcps_sap_pre_parsed_ack_buffer_get(struct protocol_interface_rf_mac_setup *rf_ptr, const uint8_t *data_ptr, uint16_t frame_length);
+
 /**
  * Forward Buffer for MAC MCPS SAP layer event handler
  */
@@ -111,7 +115,7 @@ int8_t mcps_sap_pd_confirm(void *mac_ptr);
 
 int8_t mcps_sap_pd_confirm_failure(void *mac_ptr);
 
-void mcps_sap_pd_ack(void *ack_ptr);
+int8_t mcps_sap_pd_ack(struct protocol_interface_rf_mac_setup *rf_ptr, struct mac_pre_parsed_frame_s *buffer);
 
 int8_t mac_virtual_sap_data_cb(void *identifier, struct arm_phy_sap_msg_s *message);
 
@@ -133,7 +137,11 @@ uint8_t mcps_sap_purge_reg_handler(struct protocol_interface_rf_mac_setup *rf_ma
 
 int8_t mcps_pd_data_rebuild(struct protocol_interface_rf_mac_setup *rf_ptr, mac_pre_build_frame_t *buffer);
 
+int8_t mcps_edfe_data_request(struct protocol_interface_rf_mac_setup *rf_ptr, mac_pre_build_frame_t *buffer);
+
 int8_t mcps_generic_ack_data_request_init(struct protocol_interface_rf_mac_setup *rf_ptr, const mac_fcf_sequence_t *fcf, const uint8_t *data_ptr, const mcps_ack_data_payload_t *ack_payload);
+
+int8_t mcps_generic_edfe_frame_init(struct protocol_interface_rf_mac_setup *rf_ptr, const mac_fcf_sequence_t *fcf, const uint8_t *data_ptr, const struct mcps_edfe_response_s *response);
 
 int8_t mcps_generic_ack_build(struct protocol_interface_rf_mac_setup *rf_ptr, bool init_build);
 

@@ -68,6 +68,24 @@ int ws_management_network_name_validate(
     return -1;
 }
 
+int ws_management_phy_mode_id_set(
+    int8_t interface_id,
+    uint8_t phy_mode_id)
+{
+    (void)interface_id;
+    (void)phy_mode_id;
+    return -1;
+}
+
+int ws_management_channel_plan_id_set(
+    int8_t interface_id,
+    uint8_t channel_plan_id)
+{
+    (void)interface_id;
+    (void)channel_plan_id;
+    return -1;
+}
+
 int ws_management_regulatory_domain_set(
     int8_t interface_id,
     uint8_t regulatory_domain,
@@ -380,6 +398,14 @@ int ws_test_next_gtk_set(int8_t interface_id, uint8_t *gtk[4])
     return -1;
 }
 
+int ws_test_6lowpan_fragmentation_mtu_size_set(int8_t interface_id, uint16_t mtu_size)
+{
+    (void) interface_id;
+    (void) mtu_size;
+
+    return -1;
+}
+
 int ws_statistics_start(int8_t interface_id, ws_statistics_t *stats_ptr)
 {
     (void) interface_id;
@@ -397,5 +423,43 @@ void ns_time_api_system_time_callback_set(ns_time_api_system_time_callback callb
 {
     (void) callback;
 }
+
+int ws_stack_info_get(int8_t interface_id, ws_stack_info_t *info_ptr)
+{
+    (void) interface_id;
+    (void) info_ptr;
+    return -1;
+}
+
+int ws_device_min_sens_set(
+    int8_t interface_id,
+    uint8_t device_min_sens)
+{
+    (void) interface_id;
+    (void) device_min_sens;
+    return -1;
+}
+
+int ws_test_neighbour_temporary_lifetime_set(int8_t interface_id, uint32_t temporary_lifetime)
+{
+    (void) interface_id;
+    (void) temporary_lifetime;
+    return -1;
+}
+
+void ws_test_skip_edfe_data_send(int8_t interface_id, bool skip)
+{
+    (void) interface_id;
+    (void) skip;
+}
+
+
+int8_t  ws_test_drop_edfe_data_frames(int8_t interface_id, uint8_t number_of_dropped_frames)
+{
+    (void) interface_id;
+    (void) number_of_dropped_frames;
+    return -1;
+}
+
 
 #endif // no HAVE_WS

@@ -77,11 +77,11 @@ ENTRY(Reset_Handler)
 #endif
 
 /* The size of the stack section at the end of CM0+ SRAM */
-#if !defined(MBED_BOOT_STACK_SIZE)
-    #define MBED_BOOT_STACK_SIZE 0x400
+#if !defined(MBED_CONF_TARGET_BOOT_STACK_SIZE)
+    #define MBED_CONF_TARGET_BOOT_STACK_SIZE 0x400
 #endif
 
-STACK_SIZE = MBED_BOOT_STACK_SIZE;
+STACK_SIZE = MBED_CONF_TARGET_BOOT_STACK_SIZE;
 
 #if !defined(MBED_PUBLIC_RAM_START)
   #define MBED_PUBLIC_RAM_START    (MBED_RAM_START + MBED_RAM_SIZE - STACK_SIZE - MBED_PUBLIC_RAM_SIZE)
@@ -421,9 +421,11 @@ SECTIONS
     /* Places the code in the Execute in Place (XIP) section. See the smif driver
     *  documentation for details.
     */
-    .cy_xip :
+    cy_xip :
     {
+        __cy_xip_start = .;
         KEEP(*(.cy_xip))
+        __cy_xip_end = .;
     } > xip
 
 

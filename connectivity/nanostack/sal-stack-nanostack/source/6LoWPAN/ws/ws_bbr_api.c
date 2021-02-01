@@ -19,6 +19,9 @@
 #include "nsconfig.h"
 #include "ns_types.h"
 #include "ns_trace.h"
+#include "nsdynmemLIB.h"
+#include "randLIB.h"
+#include "common_functions.h"
 #include "net_interface.h"
 #include "socket_api.h"
 #include "eventOS_event.h"
@@ -30,6 +33,7 @@
 #include "6LoWPAN/ws/ws_bootstrap.h"
 #include "6LoWPAN/ws/ws_cfg_settings.h"
 #include "6LoWPAN/ws/ws_pae_key_storage.h"
+#include "6LoWPAN/ws/ws_pae_nvm_store.h"
 #include "RPL/rpl_control.h"
 #include "RPL/rpl_data.h"
 #include "Common_Protocols/icmpv6.h"
@@ -41,6 +45,9 @@
 #include "6LoWPAN/ws/ws_pae_controller.h"
 #include "DHCPv6_Server/DHCPv6_server_service.h"
 #include "DHCPv6_client/dhcpv6_client_api.h"
+#include "libDHCPv6/libDHCPv6_vendordata.h"
+#include "libNET/src/net_dns_internal.h"
+
 
 #include "ws_bbr_api.h"
 
@@ -56,6 +63,20 @@ static uint8_t current_instance_id = RPL_INSTANCE_ID;
 #define WS_ROUTE_LIFETIME WS_ULA_LIFETIME
 #define BBR_CHECK_INTERVAL 60
 #define BBR_BACKUP_ULA_DELAY 300
+
+//TAG ID This must be update if NVM_BBR_INFO_LEN or data structure
+#define NVM_BBR_INFO_TAG        1
+// BSI 2 bytes
+#define NVM_BBR_INFO_LEN        2
+
+typedef struct bbr_info_nvm_tlv {
+    uint16_t tag;                         /**< Unique tag */
+    uint16_t len;                         /**< Number of the bytes after the length field */
+    uint8_t data[NVM_BBR_INFO_LEN];       /**< Data */
+} bbr_info_nvm_tlv_t;
+
+//NVM file name
+static const char *BBR_INFO_FILE = "pae_bbr_info";
 
 /* when creating BBR make ULA dodag ID always and when network becomes available add prefix to DHCP
  *
@@ -73,6 +94,9 @@ static uint8_t current_global_prefix[16] = {0}; // DHCP requires 16 bytes prefix
 static uint32_t bbr_delay_timer = BBR_CHECK_INTERVAL; // initial delay.
 static uint32_t global_prefix_unavailable_timer = 0; // initial delay.
 
+static uint8_t *dhcp_vendor_data_ptr = NULL;
+static uint8_t dhcp_vendor_data_len = 0;
+
 static rpl_dodag_conf_t rpl_conf = {
     // Lifetime values
     .default_lifetime = 120,
@@ -88,6 +112,63 @@ static rpl_dodag_conf_t rpl_conf = {
     .dio_redundancy_constant = WS_RPL_DIO_REDUNDANCY_SMALL
 };
 
+typedef struct dns_resolution {
+    /** Resolved address for the domain*/
+    uint8_t address[16];
+    /** Domain name string */
+    char *domain_name;
+} dns_resolution_t;
+
+#define MAX_DNS_RESOLUTIONS 4
+
+static dns_resolution_t pre_resolved_dns_queries[MAX_DNS_RESOLUTIONS] = {0};
+//BBR NVM info buffer
+
+#define BBR_NVM_BSI_OFFSET 0
+static bbr_info_nvm_tlv_t bbr_info_nvm_tlv = {
+    .tag = NVM_BBR_INFO_TAG,
+    .len = 0,
+    .data = {0}
+};
+
+static uint16_t ws_bbr_fhss_bsi = 0;
+
+static int8_t ws_bbr_nvm_info_read(bbr_info_nvm_tlv_t *tlv_entry)
+{
+    tlv_entry->tag = NVM_BBR_INFO_TAG;
+    tlv_entry->len = NVM_BBR_INFO_LEN;
+
+    int8_t ret_val = ws_pae_nvm_store_tlv_file_read(BBR_INFO_FILE, (nvm_tlv_t *) &bbr_info_nvm_tlv);
+
+    if (ret_val < 0 || tlv_entry->tag != NVM_BBR_INFO_TAG || tlv_entry->len != NVM_BBR_INFO_LEN) {
+        ws_pae_nvm_store_tlv_file_remove(BBR_INFO_FILE);
+        tlv_entry->len = 0;
+        return -1;
+    }
+    return 0;
+}
+
+static void ws_bbr_nvm_info_write(bbr_info_nvm_tlv_t *tlv_entry)
+{
+    tlv_entry->tag = NVM_BBR_INFO_TAG;
+    tlv_entry->len = NVM_BBR_INFO_LEN;
+    ws_pae_nvm_store_tlv_file_write(BBR_INFO_FILE, (nvm_tlv_t *) tlv_entry);
+    tr_debug("BBR info NVM update");
+}
+
+static uint16_t ws_bbr_bsi_read(bbr_info_nvm_tlv_t *tlv_entry)
+{
+    if (tlv_entry->tag != NVM_BBR_INFO_TAG || tlv_entry->len != NVM_BBR_INFO_LEN) {
+        return 0;
+    }
+    return common_read_16_bit(tlv_entry->data + BBR_NVM_BSI_OFFSET);
+}
+
+static void ws_bbr_bsi_write(bbr_info_nvm_tlv_t *tlv_entry, uint16_t bsi)
+{
+    common_write_16_bit(bsi, tlv_entry->data + BBR_NVM_BSI_OFFSET);
+}
+
 static void ws_bbr_rpl_version_timer_start(protocol_interface_info_entry_t *cur, uint8_t version)
 {
     // Set the next timeout value for version update
@@ -95,12 +176,12 @@ static void ws_bbr_rpl_version_timer_start(protocol_interface_info_entry_t *cur,
         //stable version for RPL so slow timer update is ok
         cur->ws_info->rpl_version_timer = RPL_VERSION_LIFETIME;
     } else {
-        if (cur->ws_info->cfg->gen.network_size <= NETWORK_SIZE_SMALL) {
-            // handles also NETWORK_SIZE_CERTIFICATE
+        if (ws_cfg_network_config_get(cur) <= CONFIG_SMALL) {
+            // Also handles CONFIG_CERTIFICATE
             cur->ws_info->rpl_version_timer = RPL_VERSION_LIFETIME_RESTART_SMALL;
-        } else if (cur->ws_info->cfg->gen.network_size <= NETWORK_SIZE_MEDIUM) {
+        } else if (ws_cfg_network_config_get(cur) <= CONFIG_MEDIUM) {
             cur->ws_info->rpl_version_timer = RPL_VERSION_LIFETIME_RESTART_MEDIUM;
-        } else if (cur->ws_info->cfg->gen.network_size <= NETWORK_SIZE_LARGE) {
+        } else if (ws_cfg_network_config_get(cur) <= CONFIG_LARGE) {
             cur->ws_info->rpl_version_timer = RPL_VERSION_LIFETIME_RESTART_LARGE;
         } else  {
             cur->ws_info->rpl_version_timer = RPL_VERSION_LIFETIME_RESTART_EXTRA_LARGE;
@@ -115,7 +196,6 @@ static void ws_bbr_rpl_version_increase(protocol_interface_info_entry_t *cur)
     }
     ws_bbr_rpl_version_timer_start(cur, rpl_control_increment_dodag_version(protocol_6lowpan_rpl_root_dodag));
 }
-
 
 void ws_bbr_rpl_config(protocol_interface_info_entry_t *cur, uint8_t imin, uint8_t doubling, uint8_t redundancy, uint16_t dag_max_rank_increase, uint16_t min_hop_rank_increase)
 {
@@ -154,6 +234,20 @@ void ws_bbr_dhcp_address_lifetime_set(protocol_interface_info_entry_t *cur, uint
     }
     // Change the setting if the border router is active
     DHCPv6_server_service_set_address_validlifetime(cur->id, current_global_prefix, dhcp_address_lifetime);
+}
+
+bool ws_bbr_backbone_address_get(uint8_t *address)
+{
+    if (backbone_interface_id < 0) {
+        return false;
+    }
+
+    if (arm_net_address_get(backbone_interface_id, ADDR_IPV6_GP, address) != 0) {
+        // No global prefix available
+        return false;
+    }
+
+    return true;
 }
 
 static void ws_bbr_rpl_root_start(protocol_interface_info_entry_t *cur, uint8_t *dodag_id)
@@ -350,6 +444,48 @@ static bool wisun_dhcp_address_add_cb(int8_t interfaceId, dhcp_address_cache_upd
     return true;
 }
 
+static void ws_bbr_dhcp_server_dns_info_update(protocol_interface_info_entry_t *cur, uint8_t *global_id)
+{
+    //add DNS server information to DHCP server that is learned from the backbone interface.
+    uint8_t dns_server_address[16];
+    uint8_t *dns_search_list_ptr = NULL;
+    uint8_t dns_search_list_len = 0;
+    (void)cur;
+    if (net_dns_server_get(backbone_interface_id, dns_server_address, &dns_search_list_ptr, &dns_search_list_len, 0) == 0) {
+        /*Only supporting one DNS server address*/
+        DHCPv6_server_service_set_dns_server(cur->id, global_id, dns_server_address, dns_search_list_ptr, dns_search_list_len);
+    }
+
+    //TODO Generate vendor data in Wi-SUN network include the cached DNS query results in some sort of TLV format
+    int vendor_data_len = 0;
+    for (int n = 0; n < MAX_DNS_RESOLUTIONS; n++) {
+        if (pre_resolved_dns_queries[n].domain_name != NULL) {
+            vendor_data_len += net_dns_option_vendor_option_data_dns_query_length(pre_resolved_dns_queries[n].domain_name);
+        }
+    }
+    if (vendor_data_len) {
+        ns_dyn_mem_free(dhcp_vendor_data_ptr);
+        dhcp_vendor_data_ptr = ns_dyn_mem_alloc(vendor_data_len);
+        if (!dhcp_vendor_data_ptr) {
+            tr_warn("Vendor info set fail");
+            return;
+        }
+        dhcp_vendor_data_len = vendor_data_len;
+    }
+    if (dhcp_vendor_data_ptr) {
+        // Write vendor data
+        uint8_t *ptr = dhcp_vendor_data_ptr;
+        for (int n = 0; n < MAX_DNS_RESOLUTIONS; n++) {
+            if (pre_resolved_dns_queries[n].domain_name != NULL) {
+                ptr = net_dns_option_vendor_option_data_dns_query_write(ptr, pre_resolved_dns_queries[n].address, pre_resolved_dns_queries[n].domain_name);
+                tr_info("set DNS query result for %s, addr: %s", pre_resolved_dns_queries[n].domain_name, tr_ipv6(pre_resolved_dns_queries[n].address));
+            }
+        }
+    }
+
+    DHCPv6_server_service_set_vendor_data(cur->id, global_id, ARM_ENTERPRISE_NUMBER, dhcp_vendor_data_ptr, dhcp_vendor_data_len);
+}
+
 static void ws_bbr_dhcp_server_start(protocol_interface_info_entry_t *cur, uint8_t *global_id, uint32_t dhcp_address_lifetime)
 {
     uint8_t ll[16];
@@ -369,6 +505,8 @@ static void ws_bbr_dhcp_server_start(protocol_interface_info_entry_t *cur, uint8
     DHCPv6_server_service_set_address_validlifetime(cur->id, global_id, dhcp_address_lifetime);
     //SEt max value for not limiting address allocation
     DHCPv6_server_service_set_max_clients_accepts_count(cur->id, global_id, MAX_SUPPORTED_ADDRESS_LIST_SIZE);
+
+    ws_bbr_dhcp_server_dns_info_update(cur, global_id);
 
     ws_dhcp_client_address_request(cur, global_id, ll);
 }
@@ -416,6 +554,8 @@ static void ws_bbr_rpl_status_check(protocol_interface_info_entry_t *cur)
 
     uint8_t local_prefix[8] = {0};
     uint8_t global_prefix[8] = {0};
+    uint8_t prefix_flags = 0;
+    uint32_t prefix_lifetime = 0;
 
     //tr_info("BBR status check");
 
@@ -520,7 +660,6 @@ static void ws_bbr_rpl_status_check(protocol_interface_info_entry_t *cur)
         }
         // TODO add global prefix
         if (memcmp(global_prefix, ADDR_UNSPECIFIED, 8) != 0) {
-
             tr_info("RPL global prefix activate %s", trace_ipv6_prefix(global_prefix, 64));
             // Add default route to RPL
             // Enable default routing to backbone
@@ -530,8 +669,12 @@ static void ws_bbr_rpl_status_check(protocol_interface_info_entry_t *cur)
                     return;
                 }
             }
+            if (configuration & BBR_GUA_SLAAC) {
+                prefix_flags |= PIO_A;
+                prefix_lifetime = WS_ULA_LIFETIME;
+            }
             ws_bbr_dhcp_server_start(cur, global_prefix, cur->ws_info->cfg->bbr.dhcp_address_lifetime);
-            rpl_control_update_dodag_prefix(protocol_6lowpan_rpl_root_dodag, global_prefix, 64, 0, 0, 0, false);
+            rpl_control_update_dodag_prefix(protocol_6lowpan_rpl_root_dodag, global_prefix, 64, prefix_flags, prefix_lifetime, prefix_lifetime, false);
             // no check for failure should have
 
             if (configuration & BBR_GUA_ROUTE) {
@@ -550,12 +693,17 @@ static void ws_bbr_rpl_status_check(protocol_interface_info_entry_t *cur)
          *  There is no status checks on prefix adds so this makes sure they are not lost
          *  DHCP validation should be done also
          */
-        rpl_control_update_dodag_prefix(protocol_6lowpan_rpl_root_dodag, current_global_prefix, 64, 0, 0, 0, false);
+        if (configuration & BBR_GUA_SLAAC) {
+            prefix_flags |= PIO_A;
+            prefix_lifetime = WS_ULA_LIFETIME;
+        }
+        rpl_control_update_dodag_prefix(protocol_6lowpan_rpl_root_dodag, current_global_prefix, 64, prefix_flags, prefix_lifetime, prefix_lifetime, false);
 
         if (configuration & BBR_GUA_ROUTE) {
             // Add also global prefix and route to RPL
             rpl_control_update_dodag_route(protocol_6lowpan_rpl_root_dodag, current_global_prefix, 64, 0, WS_ROUTE_LIFETIME, false);
         }
+        ws_bbr_dhcp_server_dns_info_update(cur, current_global_prefix);
     }
 }
 void ws_bbr_pan_version_increase(protocol_interface_info_entry_t *cur)
@@ -564,15 +712,20 @@ void ws_bbr_pan_version_increase(protocol_interface_info_entry_t *cur)
         return;
     }
     tr_debug("Border router version number update");
-    if (configuration & BBR_REQUIRE_DAO_REFRESH) {
+    if (configuration & BBR_PERIODIC_VERSION_INC) {
+        // Periodically increase the version number.
+        // This removes need for DAO, but causes slowness in recovery
+        pan_version_timer = cur->ws_info->cfg->timing.pan_timeout / PAN_VERSION_CHANGE_INTERVAL;
+    } else {
         // Version number is not periodically increased forcing nodes to check Border router availability using DAO
         pan_version_timer = 0;
-    } else {
-        pan_version_timer = cur->ws_info->cfg->timing.pan_timeout / PAN_VERSION_CHANGE_INTERVAL;
     }
     cur->ws_info->pan_information.pan_version++;
     // Inconsistent for border router to make information distribute faster
     ws_bootstrap_configuration_trickle_reset(cur);
+
+    // Indicate new pan version to PAE controller
+    ws_pae_controller_nw_info_set(cur, cur->ws_info->network_pan_id, cur->ws_info->pan_information.pan_version, cur->ws_info->cfg->gen.network_name);
 }
 
 void ws_bbr_seconds_timer(protocol_interface_info_entry_t *cur, uint32_t seconds)
@@ -696,6 +849,35 @@ bool ws_bbr_ready_to_start(protocol_interface_info_entry_t *cur)
 
     return true;
 }
+
+void ws_bbr_init(protocol_interface_info_entry_t *interface)
+{
+    (void) interface;
+    //Read From NVM
+    if (ws_bbr_nvm_info_read(&bbr_info_nvm_tlv) < 0) {
+        //NVM value not available Randomize Value Here by first time
+        ws_bbr_fhss_bsi = randLIB_get_16bit();
+        tr_debug("Randomized init value BSI %u", ws_bbr_fhss_bsi);
+    } else {
+        ws_bbr_fhss_bsi = ws_bbr_bsi_read(&bbr_info_nvm_tlv);
+        tr_debug("Read BSI %u from NVM", ws_bbr_fhss_bsi);
+    }
+}
+
+
+uint16_t ws_bbr_bsi_generate(protocol_interface_info_entry_t *interface)
+{
+    (void) interface;
+    //Give current one
+    uint16_t bsi = ws_bbr_fhss_bsi;
+    //Update value for next round
+    ws_bbr_fhss_bsi++;
+    //Store To NVN
+    ws_bbr_bsi_write(&bbr_info_nvm_tlv, ws_bbr_fhss_bsi);
+    ws_bbr_nvm_info_write(&bbr_info_nvm_tlv);
+    return bsi;
+}
+
 #endif //HAVE_WS_BORDER_ROUTER
 
 /* Public APIs
@@ -743,12 +925,16 @@ int ws_bbr_configure(int8_t interface_id, uint16_t options)
 
     protocol_interface_info_entry_t *cur = protocol_stack_interface_info_get_by_id(interface_id);
 
-    if (protocol_6lowpan_rpl_root_dodag &&
-            options != configuration) {
-        //Configuration changed delete previous setup
-        ws_bbr_routing_stop(cur);
+    if (options == configuration) {
+        return 0;
     }
+    //Configuration changed
     configuration = options;
+    if (protocol_6lowpan_rpl_root_dodag) {
+        // Already active needs to restart
+        ws_bbr_routing_stop(cur);
+        ws_bbr_pan_version_increase(cur);
+    }
     return 0;
 #else
     (void)interface_id;
@@ -788,6 +974,11 @@ int ws_bbr_info_get(int8_t interface_id, bbr_information_t *info_ptr)
 
     if (wisun_if_addr) {
         memcpy(info_ptr->IID, wisun_if_addr + 8, 8);
+    }
+
+    ipv6_route_t *next_hop = ipv6_route_choose_next_hop(ADDR_6TO4, backbone_interface_id, NULL);
+    if (next_hop) {
+        memcpy(info_ptr->gateway, next_hop->info.next_hop_addr, 16);
     }
 
     info_ptr->devices_in_network = ws_bbr_pan_size(cur);
@@ -976,6 +1167,33 @@ int ws_bbr_rpl_parameters_validate(int8_t interface_id, uint8_t dio_interval_min
 #endif
 }
 
+int ws_bbr_bsi_set(int8_t interface_id, uint16_t new_bsi)
+{
+    (void) interface_id;
+#ifdef HAVE_WS_BORDER_ROUTER
+
+    protocol_interface_info_entry_t *cur = protocol_stack_interface_info_get_by_id(interface_id);
+
+    //Check if new value is different than current active
+    if (cur && cur->ws_info && cur->lowpan_info & INTERFACE_NWK_ACTIVE) {
+        if (cur->ws_info->hopping_schdule.fhss_bsi == new_bsi) {
+            return 0;
+        }
+        tr_debug("New BSI %u to delayed activate", new_bsi);
+        ws_bootstrap_restart_delayed(cur->id);
+    }
+
+    ws_bbr_bsi_write(&bbr_info_nvm_tlv, new_bsi);
+    ws_bbr_nvm_info_write(&bbr_info_nvm_tlv);
+    ws_bbr_fhss_bsi = new_bsi;
+    return 0;
+#else
+    (void) new_bsi;
+    return -1;
+#endif
+}
+
+
 int ws_bbr_pan_configuration_set(int8_t interface_id, uint16_t pan_id)
 {
     (void) interface_id;
@@ -1066,6 +1284,164 @@ int ws_bbr_key_storage_settings_set(int8_t interface_id, uint8_t alloc_max_numbe
     (void) alloc_max_number;
     (void) alloc_size;
     (void) storing_interval;
+    return -1;
+#endif
+}
+
+int ws_bbr_radius_address_set(int8_t interface_id, const uint8_t *address)
+{
+#ifdef HAVE_WS_BORDER_ROUTER
+    return ws_pae_controller_radius_address_set(interface_id, address);
+#else
+    (void) interface_id;
+    (void) address;
+    return -1;
+#endif
+}
+
+int ws_bbr_radius_address_get(int8_t interface_id, uint8_t *address)
+{
+#ifdef HAVE_WS_BORDER_ROUTER
+    return ws_pae_controller_radius_address_get(interface_id, address);
+#else
+    (void) interface_id;
+    (void) address;
+    return -1;
+#endif
+}
+
+int ws_bbr_radius_shared_secret_set(int8_t interface_id, const uint16_t shared_secret_len, const uint8_t *shared_secret)
+{
+#ifdef HAVE_WS_BORDER_ROUTER
+    return ws_pae_controller_radius_shared_secret_set(interface_id, shared_secret_len, shared_secret);
+#else
+    (void) interface_id;
+    (void) shared_secret_len;
+    (void) shared_secret;
+    return -1;
+#endif
+}
+
+int ws_bbr_radius_shared_secret_get(int8_t interface_id, uint16_t *shared_secret_len, uint8_t *shared_secret)
+{
+#ifdef HAVE_WS_BORDER_ROUTER
+    return ws_pae_controller_radius_shared_secret_get(interface_id, shared_secret_len, shared_secret);
+#else
+    (void) interface_id;
+    (void) shared_secret_len;
+    (void) shared_secret;
+    return -1;
+#endif
+}
+
+int ws_bbr_radius_timing_set(int8_t interface_id, bbr_radius_timing_t *timing)
+{
+#ifdef HAVE_WS_BORDER_ROUTER
+    return ws_pae_controller_radius_timing_set(interface_id, timing);
+#else
+    (void) interface_id;
+    (void) timing;
+    return -1;
+#endif
+}
+
+int ws_bbr_radius_timing_get(int8_t interface_id, bbr_radius_timing_t *timing)
+{
+#ifdef HAVE_WS_BORDER_ROUTER
+    return ws_pae_controller_radius_timing_get(interface_id, timing);
+#else
+    (void) interface_id;
+    (void) timing;
+    return -1;
+#endif
+}
+
+int ws_bbr_radius_timing_validate(int8_t interface_id, bbr_radius_timing_t *timing)
+{
+#ifdef HAVE_WS_BORDER_ROUTER
+    return ws_pae_controller_radius_timing_validate(interface_id, timing);
+#else
+    (void) interface_id;
+    (void) timing;
+    return -1;
+#endif
+}
+
+int ws_bbr_dns_query_result_set(int8_t interface_id, const uint8_t address[16], char *domain_name_ptr)
+{
+#ifdef HAVE_WS_BORDER_ROUTER
+    protocol_interface_info_entry_t *cur = protocol_stack_interface_info_get_by_id(interface_id);
+    if (!cur) {
+        return -1;
+    }
+
+    /* This information is only stored to the DHCPv6 server where it is distributed to the network
+     *
+     * Border router stores a list of these entries and includes a function to parse and generate the vendor data output
+     *
+     * This is included in the vendor extension where the format is decided by the vendor
+     */
+
+    // Delete all entries
+    if (!domain_name_ptr) {
+        for (int n = 0; n < MAX_DNS_RESOLUTIONS; n++) {
+            // Delete all entries
+            memset(pre_resolved_dns_queries[n].address, 0, 16);
+            ns_dyn_mem_free(pre_resolved_dns_queries[n].domain_name);
+            pre_resolved_dns_queries[n].domain_name = NULL;
+        }
+        goto update_information;
+    }
+
+    // Update existing entries or delete
+    for (int n = 0; n < MAX_DNS_RESOLUTIONS; n++) {
+        if (pre_resolved_dns_queries[n].domain_name != NULL &&
+                strcasecmp(pre_resolved_dns_queries[n].domain_name, domain_name_ptr) == 0) {
+            // Matching query updated
+            if (address) {
+                // Update address
+                memcpy(pre_resolved_dns_queries[n].address, address, 16);
+            } else {
+                // delete entry
+                memset(pre_resolved_dns_queries[n].address, 0, 16);
+                ns_dyn_mem_free(pre_resolved_dns_queries[n].domain_name);
+                pre_resolved_dns_queries[n].domain_name = NULL;
+            }
+            goto update_information;
+        }
+    }
+
+    if (address && domain_name_ptr) {
+        // Store new entry to the list
+        for (int n = 0; n < MAX_DNS_RESOLUTIONS; n++) {
+            if (pre_resolved_dns_queries[n].domain_name == NULL) {
+                // Free entry found
+                pre_resolved_dns_queries[n].domain_name  = ns_dyn_mem_alloc(strlen(domain_name_ptr) + 1);
+                if (!pre_resolved_dns_queries[n].domain_name) {
+                    // Out of memory
+                    return -2;
+                }
+                memcpy(pre_resolved_dns_queries[n].address, address, 16);
+                strcpy(pre_resolved_dns_queries[n].domain_name, domain_name_ptr);
+                goto update_information;
+            }
+        }
+        // No room to store new field
+        return -3;
+    }
+
+update_information:
+    if (memcmp(current_global_prefix, ADDR_UNSPECIFIED, 8) == 0) {
+        // Not in active state so changes are activated after start
+        return 0;
+    }
+
+    ws_bbr_dhcp_server_dns_info_update(cur, current_global_prefix);
+    return 0;
+#else
+    (void) interface_id;
+    (void) address;
+    (void) domain_name_ptr;
     return -1;
 #endif
 }

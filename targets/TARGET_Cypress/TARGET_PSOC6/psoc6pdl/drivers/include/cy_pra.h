@@ -1,6 +1,6 @@
 /***************************************************************************//**
 * \file cy_pra.h
-* \version 1.0
+* \version 2.10
 *
 * \brief The header file of the PRA driver. The API is not intended to
 * be used directly by the user application.
@@ -59,15 +59,17 @@
 * * \ref group_arm_system_timer
 * * \ref group_wdt
 * * \ref group_flash
+* * \ref group_sysint (PSoC 64 CYB06xx7 devices only)
+* * \ref group_prot (PSoC 64 CYB06xx7 devices only)
 *
 * The execution time of the functions that access the protected registers is
 * increased on the PSoC 64 devices because the access is performed on Cortex-M0+
-* via the IPC command:
-* * The access to the protected register may take around by 20 times longer compared
-*   to unprotected one.
-* * The initial device configuration based on the device configuration depends on
-*   actual configuration, but may take up to 40 times longer.
-* * The transition Active to DeepSleep to Active may take 2 times longer.
+* via the IPC command (both CPU cores run at 8 MHz):
+* * The access to the protected register may take about 50 us, while access
+*   to the unprotected one may take about 3 us.
+* * The initial device configuration may take up to 1.75 ms for PSoC 64 devices,
+*   while for the other devices it may take about 0.3 ms.
+* * The transition Active to DeepSleep to Active may take about 2 times longer.
 *
 * \section group_pra_basic_operation Basic Operation
 * The PRA driver uses an IPC channel to transfer register data between the user
@@ -102,7 +104,7 @@
 * \note The clock source for Cortex-M4 SysTick cannot be configured with
 * the Device Configurator. Enabling CLK_ALT_SYS_TICK will result in a
 * compilation error. SysTick still can be configured in run-time with
-* some limitations. For more details, refer to \ref Cy_SysTick_GetClockSource()
+* some limitations. For more details, refer to \ref Cy_SysTick_SetClockSource()
 * in \ref group_arm_system_timer.
 *
 * \section group_pra_standalone Using without BSPs
@@ -119,55 +121,57 @@
 * See the device technical reference manual (TRM) reference manual (TRM) for
 * the list of the protected registers.
 *
-* \section group_pra_MISRA MISRA-C Compliance
-* The LVD driver specific deviations:
-* <table class="doxtable">
-*   <tr>
-*     <th>MISRA Rule</th>
-*     <th>Rule Class (Required/Advisory)</th>
-*     <th>Rule Description</th>
-*     <th>Description of Deviation(s)</th>
-*   </tr>
-*   <tr>
-*     <td>13.7</td>
-*     <td>R</td>
-*     <td>Boolean operations with invariant results are not permitted.</td>
-*     <td>False positive. Cy_PRA_SendCmd() compiled for Cortex-M4 has a shared
-*         variable, which is modified by the Cortex-M0+ application, but the analysis tool
-*         is not aware of this fact.</td>
-*   </tr>
-*   <tr>
-*     <td>14.1</td>
-*     <td>R</td>
-*     <td>No unreachable code.</td>
-*     <td>False positive. Cy_PRA_SendCmd() compiled for Cortex-M4 has a shared
-*         variable, which is modified by the Cortex-M0+ application and used in a condition
-*         statement, but the analysis tool is not aware of this fact.</td>
-*   </tr>
-*   <tr>
-*     <td>14.7</td>
-*     <td>R</td>
-*     <td>A function has a single exit point at the end of the function.</td>
-*     <td>There are a few functions with multiple exit points implemented to
-*         simplify functions design.</td>
-*   </tr>
-*   <tr>
-*     <td>19.13</td>
-*     <td>A</td>
-*     <td>Do not use the # and ## operators.</td>
-*     <td>The ## preprocessor operator is used in macros to form the field mask.</td>
-*   </tr>
-*   <tr>
-*     <td>20.3</td>
-*     <td>R</td>
-*     <td>Check the validity of values passed to library functions.</td>
-*     <td>The additional check to eliminate the possibility of accessing the beyond array in Cy_PRA_ProcessCmd().</td>
-*   </tr>
-* </table>
-*
 * \section group_pra_changelog Changelog
 * <table class="doxtable">
 *   <tr><th>Version</th><th>Changes</th><th>Reason for Change</th></tr>
+*   <tr>
+*     <td rowspan="3">2.10</td>
+*     <td>Removed include of cy_gpio.h from the driver's c source files.
+*         Added some source code comments.</td>
+*     <td>Source code cleanup.</td>
+*   </tr>
+*   <tr>
+*     <td>Updated attribute usage for the linker section placement.</td>
+*     <td>Enhancement based on usability feedback.</td>
+*   </tr>
+*   <tr>
+*     <td>Fixed MISRA 2012 violations.</td>
+*     <td>MISRA 2012 compliance.</td>
+*   </tr>
+*   <tr>
+*     <td rowspan="6">2.0</td>
+*     <td> Added PSoC 64 CYB06xx7 devices support.</td>
+*     <td> New devices support.</td>
+*   </tr>
+*   <tr>
+*     <td>
+*          Updated Cy_PRA_Init() to compare the major and minor version of the PRA driver on the
+*          Cortex-M0+ and Cortex-M4 sides and halt Cortex-M4 if the versions are different.
+*     </td>
+*     <td> Ensure that the same PRA driver version is used on the  Cortex-M0+ and Cortex-M4 sides.</td>
+*   </tr>
+*   <tr>
+*     <td> Fixed the location of the \ref cy_stc_pra_system_config_t description in the documentation.
+*     </td>
+*     <td>Documentation update.</td>
+*   </tr>
+*   <tr>
+*     <td> Corrected the reference to the \ref group_arm_system_timer function with the
+*          limitation description - \ref Cy_SysTick_SetClockSource().
+*     </td>
+*     <td> Documentation update.</td>
+*   </tr>
+*   <tr>
+*     <td> The state of the following clocks changes only when the requested state
+*          differs from the actual state in the hardware:
+*          HF1-HF5, TIMER, PUMP, BLE_ECO, ILO, PILO, and WCO.
+*     </td>
+*     <td> Improved the \ref Cy_PRA_SystemConfig() function execution time.</td>
+*   </tr>
+*   <tr>
+*     <td> Renamed altHfFreq to altHFclkFreq in \ref cy_stc_pra_system_config_t.</td>
+*     <td> Eliminated the naming conflict with the SysClk driver.</td>
+*   </tr>
 *   <tr>
 *     <td>1.0</td>
 *     <td>Initial version</td>
@@ -175,9 +179,10 @@
 *   </tr>
 * </table>
 *
-* \defgroup group_pra_macros                Macros
-* \defgroup group_pra_functions             Functions
-* \defgroup group_pra_enums                 Enumerated Types
+* \defgroup group_pra_macros        Macros
+* \defgroup group_pra_functions     Functions
+* \defgroup group_pra_enums         Enumerated Types
+* \defgroup group_pra_stc           Data Structures
 */
 
 #if !defined(CY_PRA_H)
@@ -201,7 +206,7 @@ extern "C" {
 
 /** \cond INTERNAL */
 
-#define CY_PRA_REG_INDEX_COUNT           (16U)
+#define CY_PRA_REG_INDEX_COUNT           (32U)
 
 #define CY_PRA_MSG_TYPE_REG32_GET        (1U)
 #define CY_PRA_MSG_TYPE_REG32_CLR_SET    (2U)
@@ -210,6 +215,7 @@ extern "C" {
 #define CY_PRA_MSG_TYPE_SYS_CFG_FUNC     (5U)
 #define CY_PRA_MSG_TYPE_SECURE_ONLY      (6U)
 #define CY_PRA_MSG_TYPE_FUNC_POLICY      (7U)
+#define CY_PRA_MSG_TYPE_VERSION_CHECK    (8U)
 
 /* IPC */
 #define CY_PRA_IPC_NOTIFY_INTR          (0x1UL << CY_IPC_INTR_PRA)
@@ -234,7 +240,9 @@ extern "C" {
 #define CY_PRA_INDX_SRSS_CLK_MFO_CONFIG         (13U)
 #define CY_PRA_INDX_SRSS_CLK_MF_SELECT          (14U)
 #define CY_PRA_INDX_FLASHC_FM_CTL_BOOKMARK      (15U)
-
+/* There are MS_NR (16) registers. The index 16 to 31 are used. */
+#define CY_PRA_INDX_PROT_MPU_MS_CTL             (16u)
+/* The next index should be 32. */
 
 /* Functions Index */
 #define CY_PRA_FUNC_INIT_CYCFG_DEVICE           (0U)
@@ -278,6 +286,11 @@ extern "C" {
 #define CY_PRA_CLK_FUNC_DS_BEFORE_TRANSITION    (44U)
 #define CY_PRA_CLK_FUNC_DS_AFTER_TRANSITION     (45U)
 #define CY_PRA_CLK_FUNC_EXT_CLK_SET_FREQUENCY   (46U)
+#define CY_PRA_CLK_FUNC_ILO_TRIM                (47U)
+#define CY_PRA_CLK_FUNC_SET_PILO_TRIM           (48U)
+#define CY_PRA_CLK_FUNC_UPDATE_PILO_TRIM_STEP   (49U)
+#define CY_PRA_CLK_FUNC_START_MEASUREMENT       (50U)
+#define CY_PRA_CLK_FUNC_PILO_INITIAL_TRIM       (51U)
 
 #define CY_PRA_PM_FUNC_HIBERNATE                (102U)
 #define CY_PRA_PM_FUNC_CM4_DP_FLAG_SET          (103U)
@@ -290,11 +303,15 @@ extern "C" {
 #define CY_PRA_PM_FUNC_BUCK_VOLTAGE2_HW_CTRL    (110U)
 #define CY_PRA_PM_FUNC_BUCK_SET_VOLTAGE2        (111U)
 
+#define CY_PRA_BLE_CLK_FUNC_ECO_CONFIGURE       (200U)
+#define CY_PRA_BLE_CLK_FUNC_ECO_RESET           (201U)
+
+
 /** Driver major version */
-#define CY_PRA_DRV_VERSION_MAJOR       1
+#define CY_PRA_DRV_VERSION_MAJOR       2
 
 /** Driver minor version */
-#define CY_PRA_DRV_VERSION_MINOR       0
+#define CY_PRA_DRV_VERSION_MINOR       10
 
 /** Protected Register Access driver ID */
 #define CY_PRA_ID                       (CY_PDL_DRV_ID(0x46U))
@@ -315,6 +332,7 @@ typedef enum
     CY_PRA_STATUS_REQUEST_SENT                      = CY_PRA_ID | CY_PDL_STATUS_INFO  | 0xFFCU,     /**< The IPC message status when sent from Non-Secure to Secure */
     CY_PRA_STATUS_ERROR_SYSPM_FAIL                  = CY_PRA_ID | CY_PDL_STATUS_ERROR | 0xFFBU,     /**< SysPM failure */
     CY_PRA_STATUS_ERROR_SYSPM_TIMEOUT               = CY_PRA_ID | CY_PDL_STATUS_ERROR | 0xFFAU,     /**< SysPM operation timeout */
+    CY_PRA_STATUS_ERROR_PRA_VERSION                 = CY_PRA_ID | CY_PDL_STATUS_ERROR | 0xFF9U,     /**< The driver version mismatch between Cortex-M0+ and Cortex-M4 */
     /* Reserve 0xFF9 - 0xFF0 */
 
     CY_PRA_STATUS_INVALID_PARAM_ECO                 = CY_PRA_ID | CY_PDL_STATUS_ERROR | 0xFEFU,     /**< Returns Error while validating the ECO parameters */
@@ -455,7 +473,7 @@ void Cy_PRA_Init(void);
 #if (CY_CPU_CORTEX_M0P) || defined (CY_DOXYGEN)
     void Cy_PRA_CloseSrssMain2(void);
     void Cy_PRA_OpenSrssMain2(void);
-#endif /* (CY_CPU_CORTEX_M0P) */
+#endif /* (CY_CPU_CORTEX_M0P) || defined (CY_DOXYGEN) */
 /** \endcond */
 
 #if (CY_CPU_CORTEX_M4) || defined (CY_DOXYGEN)
@@ -469,7 +487,7 @@ void Cy_PRA_Init(void);
     */
 
 /*******************************************************************************
-* Macro Name: CY_PRA_REG32_CLR_SET
+* Macro Name: CY_PRA_REG32_CLR_SET(regIndex, field, value)
 ****************************************************************************//**
 *
 * Provides get-clear-modify-write operations with a name field and value and
@@ -479,6 +497,12 @@ void Cy_PRA_Init(void);
 * not listed in the TRM) results in an error. The list of the registers that
 * can be accessed by the PRA driver directly is defined in the cy_pra.h file
 * with the CY_PRA_INDX_ prefix.
+*
+* \param regIndex The register address index.
+*
+* \param field The field to be updated.
+*
+* \param value The value to write.
 *
 *******************************************************************************/
     #define CY_PRA_REG32_CLR_SET(regIndex, field, value)  \

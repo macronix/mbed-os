@@ -67,13 +67,13 @@ void ws_pae_nvm_store_generic_tlv_free(nvm_tlv_t *tlv_entry)
     ns_dyn_mem_free(tlv_entry);
 }
 
-void ws_pae_nvm_store_nw_info_tlv_create(nvm_tlv_t *tlv_entry, uint16_t pan_id, char *nw_name, sec_prot_gtk_keys_t *gtks)
+void ws_pae_nvm_store_nw_info_tlv_create(nw_info_nvm_tlv_t *tlv_entry, uint16_t pan_id, char *nw_name, sec_prot_gtk_keys_t *gtks)
 {
     int len;
     tlv_entry->tag = PAE_NVM_NW_INFO_TAG;
     tlv_entry->len = PAE_NVM_NW_INFO_LEN;
 
-    uint8_t *tlv = ((uint8_t *) &tlv_entry->tag) + NVM_TLV_FIXED_LEN;
+    uint8_t *tlv = (uint8_t *) &tlv_entry->data[0];
 
     tlv = common_write_16_bit(pan_id, tlv);
 
@@ -119,7 +119,7 @@ void ws_pae_nvm_store_nw_info_tlv_create(nvm_tlv_t *tlv_entry, uint16_t pan_id, 
 
 }
 
-int8_t ws_pae_nvm_store_nw_info_tlv_read(nvm_tlv_t *tlv_entry, uint16_t *pan_id, char *nw_name, sec_prot_gtk_keys_t *gtks)
+int8_t ws_pae_nvm_store_nw_info_tlv_read(nw_info_nvm_tlv_t *tlv_entry, uint16_t *pan_id, char *nw_name, sec_prot_gtk_keys_t *gtks)
 {
     if (!tlv_entry || !pan_id || !nw_name) {
         return -1;
@@ -129,7 +129,7 @@ int8_t ws_pae_nvm_store_nw_info_tlv_read(nvm_tlv_t *tlv_entry, uint16_t *pan_id,
         return -1;
     }
 
-    uint8_t *tlv = ((uint8_t *) &tlv_entry->tag) + NVM_TLV_FIXED_LEN;
+    uint8_t *tlv = (uint8_t *) &tlv_entry->data[0];
 
     if (*pan_id == 0xffff) {
         // If application has not set pan_id read it from NVM
@@ -184,12 +184,12 @@ int8_t ws_pae_nvm_store_nw_info_tlv_read(nvm_tlv_t *tlv_entry, uint16_t *pan_id,
     return 0;
 }
 
-void ws_pae_nvm_store_keys_tlv_create(nvm_tlv_t *tlv_entry, sec_prot_keys_t *sec_keys)
+void ws_pae_nvm_store_keys_tlv_create(keys_nvm_tlv_t *tlv_entry, sec_prot_keys_t *sec_keys)
 {
     tlv_entry->tag = PAE_NVM_KEYS_TAG;
     tlv_entry->len = PAE_NVM_KEYS_LEN;
 
-    uint8_t *tlv = ((uint8_t *) &tlv_entry->tag) + NVM_TLV_FIXED_LEN;
+    uint8_t *tlv = (uint8_t *) &tlv_entry->data[0];
 
     uint8_t *eui_64 = sec_prot_keys_ptk_eui_64_get(sec_keys);
     if (eui_64) {
@@ -231,7 +231,7 @@ void ws_pae_nvm_store_keys_tlv_create(nvm_tlv_t *tlv_entry, sec_prot_keys_t *sec
     tr_debug("NVM KEYS write");
 }
 
-int8_t ws_pae_nvm_store_keys_tlv_read(nvm_tlv_t *tlv_entry, sec_prot_keys_t *sec_keys)
+int8_t ws_pae_nvm_store_keys_tlv_read(keys_nvm_tlv_t *tlv_entry, sec_prot_keys_t *sec_keys)
 {
     if (!tlv_entry || !sec_keys) {
         return -1;
@@ -241,7 +241,7 @@ int8_t ws_pae_nvm_store_keys_tlv_read(nvm_tlv_t *tlv_entry, sec_prot_keys_t *sec
         return -1;
     }
 
-    uint8_t *tlv = ((uint8_t *) &tlv_entry->tag) + NVM_TLV_FIXED_LEN;
+    uint8_t *tlv = (uint8_t *) &tlv_entry->data[0];
 
     // EUI-64 set */
     if (*tlv++ == PAE_NVM_FIELD_SET) {
@@ -281,17 +281,19 @@ int8_t ws_pae_nvm_store_keys_tlv_read(nvm_tlv_t *tlv_entry, sec_prot_keys_t *sec
     return 0;
 }
 
-void ws_pae_nvm_store_frame_counter_tlv_create(nvm_tlv_t *tlv_entry, uint32_t restart_cnt, frame_counters_t *counters)
+void ws_pae_nvm_store_frame_counter_tlv_create(frame_cnt_nvm_tlv_t *tlv_entry, uint32_t restart_cnt, uint16_t pan_version, frame_counters_t *counters)
 {
     tlv_entry->tag = PAE_NVM_FRAME_COUNTER_TAG;
     tlv_entry->len = PAE_NVM_FRAME_COUNTER_LEN;
 
-    uint8_t *tlv = ((uint8_t *) &tlv_entry->tag) + NVM_TLV_FIXED_LEN;
+    uint8_t *tlv = (uint8_t *) &tlv_entry->data[0];
 
     tlv = common_write_32_bit(restart_cnt, tlv);
 
     uint64_t stored_time = ws_pae_current_time_get();
     tlv = common_write_64_bit(stored_time, tlv);
+
+    tlv = common_write_16_bit(pan_version, tlv);
 
     for (uint8_t index = 0; index < GTK_NUM; index++) {
         if (!counters->counter[index].set) {
@@ -309,7 +311,7 @@ void ws_pae_nvm_store_frame_counter_tlv_create(nvm_tlv_t *tlv_entry, uint32_t re
     tr_debug("NVM FRAME COUNTER write");
 }
 
-int8_t ws_pae_nvm_store_frame_counter_tlv_read(nvm_tlv_t *tlv_entry, uint32_t *restart_cnt, uint64_t *stored_time, frame_counters_t *counters)
+int8_t ws_pae_nvm_store_frame_counter_tlv_read(frame_cnt_nvm_tlv_t *tlv_entry, uint32_t *restart_cnt, uint64_t *stored_time, uint16_t *pan_version, frame_counters_t *counters)
 {
     if (!tlv_entry || !counters) {
         return -1;
@@ -319,13 +321,16 @@ int8_t ws_pae_nvm_store_frame_counter_tlv_read(nvm_tlv_t *tlv_entry, uint32_t *r
         return -1;
     }
 
-    uint8_t *tlv = ((uint8_t *) &tlv_entry->tag) + NVM_TLV_FIXED_LEN;
+    uint8_t *tlv = (uint8_t *) &tlv_entry->data[0];
 
     *restart_cnt = common_read_32_bit(tlv);
     tlv += 4;
 
     *stored_time = common_read_64_bit(tlv);
     tlv += 8;
+
+    *pan_version = common_read_16_bit(tlv);
+    tlv += 2;
 
     for (uint8_t index = 0; index < GTK_NUM; index++) {
         // Frame counter not set

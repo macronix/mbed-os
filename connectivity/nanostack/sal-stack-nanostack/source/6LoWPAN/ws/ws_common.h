@@ -42,6 +42,7 @@ typedef struct parent_info_s {
     uint16_t             pan_id;             /**< PAN ID */
     uint8_t              addr[8];            /**< address */
     uint8_t              link_quality;       /**< LQI value measured during reception of the MPDU */
+    uint8_t              tx_fail;
     int8_t               signal_dbm;         /**< This extension for normal IEEE 802.15.4 Data indication */
     ws_pan_information_t pan_information;
     ws_utt_ie_t          ws_utt;
@@ -72,6 +73,11 @@ typedef struct {
     uint8_t index;
 } ws_pending_key_index_t;
 
+typedef struct {
+    uint32_t block_time;
+    uint16_t old_bsi;
+} ws_bsi_block_t;
+
 typedef NS_LIST_HEAD(ws_nud_table_entry_t, link) ws_nud_table_list_t;
 
 typedef struct ws_info_s {
@@ -83,9 +89,12 @@ typedef struct ws_info_s {
     uint8_t rpl_state; // state from rpl_event_t
     uint8_t pas_requests; // Amount of PAN solicits sent
     uint8_t eapol_tx_index;
+    uint8_t device_min_sens; // Device min sensitivity set by the application
+    int8_t weakest_received_rssi; // Weakest received signal (dBm)
     parent_info_t parent_info[WS_PARENT_LIST_SIZE];
     parent_info_list_t parent_list_free;
     parent_info_list_t parent_list_reserved;
+    ws_bsi_block_t ws_bsi_block;
     uint16_t aro_registration_timer;       /**< Aro registration timer */
     uint16_t rpl_version_timer;            /**< RPL version update timeout */
     uint32_t pan_timeout_timer;    /**< routers will fallback to previous state after this */
@@ -113,17 +122,25 @@ typedef struct ws_info_s {
 
 #ifdef HAVE_WS
 
-int8_t ws_generate_channel_list(uint32_t *channel_mask, uint16_t number_of_channels, uint8_t regulatory_domain, uint8_t operating_class);
+int8_t ws_generate_channel_list(uint32_t *channel_mask, uint16_t number_of_channels, uint8_t regulatory_domain, uint8_t operating_class, uint8_t channel_plan_id);
+
+uint16_t ws_active_channel_count(uint32_t *channel_mask, uint16_t number_of_channels);
 
 uint32_t ws_decode_channel_spacing(uint8_t channel_spacing);
 
 uint32_t ws_get_datarate_using_operating_mode(uint8_t operating_mode);
 
+uint32_t ws_get_datarate_using_phy_mode_id(uint8_t phy_mode_id);
+
+uint8_t ws_get_ofdm_option_using_phy_mode_id(uint8_t phy_mode_id);
+
+uint8_t ws_get_ofdm_mcs_using_phy_mode_id(uint8_t phy_mode_id);
+
 phy_modulation_index_e ws_get_modulation_index_using_operating_mode(uint8_t operating_mode);
 
 int8_t ws_common_regulatory_domain_config(protocol_interface_info_entry_t *cur, ws_hopping_schedule_t *hopping_schdule);
 
-uint16_t ws_common_channel_number_calc(uint8_t regulatory_domain, uint8_t operating_class);
+uint16_t ws_common_channel_number_calc(uint8_t regulatory_domain, uint8_t operating_class, uint8_t channel_plan_id);
 
 int8_t ws_common_allocate_and_init(protocol_interface_info_entry_t *cur);
 
@@ -133,11 +150,13 @@ void ws_common_fast_timer(protocol_interface_info_entry_t *cur, uint16_t ticks);
 
 void ws_common_neighbor_update(protocol_interface_info_entry_t *cur, const uint8_t *ll_address);
 
+void ws_common_black_list_neighbour(const uint8_t *ll_address, uint8_t nd_status);
+
 void ws_common_aro_failure(protocol_interface_info_entry_t *cur, const uint8_t *ll_address);
 
 void ws_common_neighbor_remove(protocol_interface_info_entry_t *cur, const uint8_t *ll_address);
 
-uint8_t ws_common_allow_child_registration(protocol_interface_info_entry_t *cur, const uint8_t *eui64);
+uint8_t ws_common_allow_child_registration(protocol_interface_info_entry_t *cur, const uint8_t *eui64, uint16_t aro_timeout);
 
 bool ws_common_negative_aro_mark(protocol_interface_info_entry_t *interface, const uint8_t *eui64);
 
@@ -149,19 +168,28 @@ uint32_t ws_common_datarate_get(protocol_interface_info_entry_t *cur);
 
 uint32_t ws_common_network_size_estimate_get(protocol_interface_info_entry_t *cur);
 
+void ws_common_primary_parent_update(protocol_interface_info_entry_t *interface, mac_neighbor_table_entry_t *neighbor);
+
+void ws_common_secondary_parent_update(protocol_interface_info_entry_t *interface);
+
+uint8_t ws_common_temporary_entry_size(uint8_t mac_table_size);
 #define ws_info(cur) ((cur)->ws_info)
 #else
 #define ws_info(cur) ((ws_info_t *) NULL)
 #define ws_common_seconds_timer(cur, seconds)
 #define ws_common_neighbor_update(cur, ll_address) ((void) 0)
+#define ws_common_black_list_neighbour(ll_address, nd_status) ((void) 0)
 #define ws_common_aro_failure(cur, ll_address)
 #define ws_common_neighbor_remove(cur, ll_address)
 #define ws_common_fast_timer(cur, ticks) ((void) 0)
-#define ws_common_allow_child_registration(cur, eui64) (2)
+#define ws_common_allow_child_registration(cur, eui64, aro_timeout) (2)
 #define ws_common_negative_aro_mark(interface, eui64)(false)
 #define ws_common_latency_estimate_get(cur) 0
 #define ws_common_datarate_get(cur) 0
 #define ws_common_network_size_estimate_get(cur) 0
+#define ws_common_primary_parent_update(interface, neighbor)
+#define ws_common_secondary_parent_update(interface)
+
 
 #endif //HAVE_WS
 #endif //WS_COMMON_H_

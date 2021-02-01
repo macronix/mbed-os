@@ -1,6 +1,6 @@
  /***************************************************************************//**
 * \file cy_ble_clk.c
-* \version 3.40.1
+* \version 3.60
 *
 * \brief
 *  This driver provides the source code for API BLE ECO clock.
@@ -36,15 +36,24 @@
 extern "C" {
 #endif /* __cplusplus */
 
+CY_MISRA_DEVIATE_BLOCK_START('MISRA C-2012 Rule 10.4', 1, \
+'Checked manually. Type cast to uint8_t made intentionally.');
+
+CY_MISRA_DEVIATE_BLOCK_START('MISRA C-2012 Rule 10.8', 3, \
+'Checked manually. Type cast to uint8_t made intentionally.');
+
 /*******************************************************************************
 *       Internal functions
 *******************************************************************************/
 
+#if !((CY_CPU_CORTEX_M4) && (defined(CY_DEVICE_SECURE)))
 static cy_en_ble_eco_status_t Cy_BLE_HAL_RcbRegRead(uint16_t addr, uint16_t *data);
 static cy_en_ble_eco_status_t Cy_BLE_HAL_RcbRegWrite(uint16_t addr, uint16_t data);
 static cy_en_ble_eco_status_t Cy_BLE_HAL_EcoSetTrim(uint32_t trim, uint32_t startUpTime);
-static cy_en_ble_eco_status_t Cy_BLE_HAL_MxdRadioEnableClocks(cy_en_ble_eco_freq_t ecoFreq,
+static cy_en_ble_eco_status_t Cy_BLE_HAL_MxdRadioEnableClocks(cy_en_ble_eco_freq_t bleEcoFreq,
                                                               cy_en_ble_eco_sys_clk_div_t sysClkDiv);
+#endif /* !((CY_CPU_CORTEX_M4) && (defined(CY_DEVICE_SECURE))) */
+
 
 /*******************************************************************************
 *       Internal Defines
@@ -140,11 +149,11 @@ static cy_en_ble_eco_status_t Cy_BLE_HAL_MxdRadioEnableClocks(cy_en_ble_eco_freq
 
 
 /* Range for inputs parameters */
-#define CY_BLE_ECO_XTAL_START_UP_TIME_MAX                    ((uint8_t) (4593.75 / 31.25))
-#define CY_BLE_ECO_XTAL_START_UP_TIME_MIN                    ((uint8_t) (400 / 31.25))
+#define CY_BLE_ECO_XTAL_START_UP_TIME_MAX                    ((uint32_t) (4593.75 / 31.25))
+#define CY_BLE_ECO_XTAL_START_UP_TIME_MIN                    ((uint32_t) (400 / 31.25))
 
-#define CY_BLE_ECO_CLOAD_MIN                                 ((uint8_t) ((7.5 - 7.5)/0.075))
-#define CY_BLE_ECO_CLOAD_MAX                                 ((uint8_t) ((26.325 - 7.5)/0.075))
+#define CY_BLE_ECO_CLOAD_MIN                                 ((uint32_t) ((7.5 - 7.5)/0.075))
+#define CY_BLE_ECO_CLOAD_MAX                                 ((uint32_t) ((26.325 - 7.5)/0.075))
 
 #define CY_BLE_ECO_SET_TRIM_DELAY_COEF                       (32U)
 #define CY_BLE_ECO_LDO_ENABLE_DELAY                          (64U)
@@ -202,6 +211,11 @@ static cy_en_ble_eco_status_t Cy_BLE_HAL_MxdRadioEnableClocks(cy_en_ble_eco_freq
 *  CY_BLE_ECO_ALREADY_STARTED  | The BLE ECO clock is already started.
 *  CY_BLE_ECO_HARDWARE_ERROR   | The RCB or BLE ECO operation failed.
 *
+*  For the PSoC 64 devices, there are possible situations when the function returns
+*  the PRA error status code. This is because for PSoC 64 devices, the function
+*  uses the PRA driver to change the frequency value on the protected side.
+*  Refer to \ref cy_en_pra_status_t for more details.
+*
 *  \funcusage
 *  \snippet bleclk/snippet/main.c BLE ECO clock API: Cy_BLE_EcoConfigure()
 *
@@ -219,6 +233,19 @@ cy_en_ble_eco_status_t Cy_BLE_EcoConfigure(cy_en_ble_eco_freq_t freq, cy_en_ble_
                                            uint32_t cLoad, uint32_t xtalStartUpTime, cy_en_ble_eco_voltage_reg_t voltageReg)
 {
     cy_en_ble_eco_status_t status = CY_BLE_ECO_SUCCESS;
+
+#if ((CY_CPU_CORTEX_M4) && (defined(CY_DEVICE_SECURE)))
+    cy_stc_pra_ble_eco_config_t ecoConfigParams;
+    ecoConfigParams.freq = freq;
+    ecoConfigParams.sysClkDiv = sysClkDiv;
+    ecoConfigParams.cLoad = cLoad;
+    ecoConfigParams.xtalStartUpTime = xtalStartUpTime;
+    ecoConfigParams.voltageReg = voltageReg;
+
+    status = (cy_en_ble_eco_status_t)CY_PRA_FUNCTION_CALL_RETURN_PARAM(CY_PRA_MSG_TYPE_SECURE_ONLY,
+                                                                       CY_PRA_BLE_CLK_FUNC_ECO_CONFIGURE,
+                                                                       &ecoConfigParams);
+#else
     uint32_t temp = 0UL;
 
     if( (freq > CY_BLE_BLESS_ECO_FREQ_32MHZ) || (sysClkDiv > CY_BLE_SYS_ECO_CLK_DIV_8) ||
@@ -395,6 +422,7 @@ cy_en_ble_eco_status_t Cy_BLE_EcoConfigure(cy_en_ble_eco_freq_t freq, cy_en_ble_
             }
         }
     }
+#endif /* ((CY_CPU_CORTEX_M4) && (!defined(CY_DEVICE_SECURE))) */
 
     return(status);
 }
@@ -413,8 +441,12 @@ cy_en_ble_eco_status_t Cy_BLE_EcoConfigure(cy_en_ble_eco_freq_t freq, cy_en_ble_
 void Cy_BLE_EcoReset(void)
 {
     /* Initiate Soft Reset */
+#if ((CY_CPU_CORTEX_M4) && (defined(CY_DEVICE_SECURE)))
+    CY_PRA_FUNCTION_CALL_VOID_VOID(CY_PRA_MSG_TYPE_SECURE_ONLY, CY_PRA_BLE_CLK_FUNC_ECO_RESET);
+#else
     BLE_BLESS_LL_CLK_EN |= BLE_BLESS_LL_CLK_EN_BLESS_RESET_Msk;
     cy_BleEcoClockFreqHz = 0UL; /* Reset the BLE ECO frequency */
+#endif
 }
 
 
@@ -429,7 +461,7 @@ void Cy_BLE_EcoReset(void)
 *  instead of this function.
 *
 *  \param config
-*  The pointer to the configuration structure \ref cy_stc_ble_eco_config_t.
+*  The pointer to the configuration structure cy_stc_ble_eco_config_t.
 *
 *  \return
 *  \ref cy_en_ble_eco_status_t : The return value indicates if the function
@@ -545,6 +577,7 @@ void Cy_BLE_HAL_Init(void)
 }
 
 
+#if !((CY_CPU_CORTEX_M4) && (defined(CY_DEVICE_SECURE)))
 /*******************************************************************************
 * Function Name: Cy_BLE_HAL_RcbRegRead
 ****************************************************************************//**
@@ -642,7 +675,7 @@ static cy_en_ble_eco_status_t Cy_BLE_HAL_RcbRegWrite(uint16_t addr, uint16_t dat
 *  Sets ECO trim value.
 *
 *  \param trim        : Trim value.
-*         startUpTime : Start up time delay.
+*  \param startUpTime : Start up time delay.
 *
 *  \return
 *  \ref cy_en_ble_eco_status_t : Return value indicates if the function succeeded or
@@ -683,8 +716,8 @@ static cy_en_ble_eco_status_t Cy_BLE_HAL_EcoSetTrim(uint32_t trim, uint32_t star
 *
 *  Enables and configures radio clock.
 *
-*  \param ecoFreq   : ECO Frequency.
-*         sysClkDiv : System divider for ECO clock.
+*  \param bleEcoFreq   : ECO Frequency.
+*  \param sysClkDiv : System divider for ECO clock.
 *
 *  \return
 *  \ref cy_en_ble_eco_status_t : Return value indicates if the function succeeded or
@@ -696,7 +729,7 @@ static cy_en_ble_eco_status_t Cy_BLE_HAL_EcoSetTrim(uint32_t trim, uint32_t star
 *  CY_BLE_ECO_HARDWARE_ERROR   | If RCB operation failed
 *
 *******************************************************************************/
-static cy_en_ble_eco_status_t Cy_BLE_HAL_MxdRadioEnableClocks(cy_en_ble_eco_freq_t ecoFreq,
+static cy_en_ble_eco_status_t Cy_BLE_HAL_MxdRadioEnableClocks(cy_en_ble_eco_freq_t bleEcoFreq,
                                                               cy_en_ble_eco_sys_clk_div_t sysClkDiv)
 {
     uint16_t temp;
@@ -771,7 +804,7 @@ static cy_en_ble_eco_status_t Cy_BLE_HAL_MxdRadioEnableClocks(cy_en_ble_eco_freq
          * Set BLERD divider to maximum value taking in to account that 8 MHz is required for BLELL.
          * BLELL clock frequency is set to 8 MHz irrespective of the crystal value.
          */
-        if(ecoFreq == CY_BLE_BLESS_ECO_FREQ_32MHZ)
+        if(bleEcoFreq == CY_BLE_BLESS_ECO_FREQ_32MHZ)
         {
             if(sysClkDiv >= CY_BLE_SYS_ECO_CLK_DIV_4)
             {
@@ -783,7 +816,7 @@ static cy_en_ble_eco_status_t Cy_BLE_HAL_MxdRadioEnableClocks(cy_en_ble_eco_freq
                 blellDivider = (uint16_t)CY_BLE_MXD_RADIO_CLK_DIV_4 - blerdDivider;
             }
             temp |= CY_BLE_RF_DCXO_BUF_CFG_REG_XTAL_32M_SEL_BIT;
-            temp |= (uint16_t)(CY_BLE_MXD_RADIO_CLK_BUF_AMP_32M_LARGE << CY_BLE_RF_DCXO_BUF_CFG_REG_BUF_AMP_SEL_SHIFT);
+            temp |= ((uint16_t)CY_BLE_MXD_RADIO_CLK_BUF_AMP_32M_LARGE << (uint16_t)CY_BLE_RF_DCXO_BUF_CFG_REG_BUF_AMP_SEL_SHIFT);
 
             /* Update cy_BleEcoClockFreqHz for the proper Cy_SysLib_Delay functionality */
             cy_BleEcoClockFreqHz = CY_BLE_DEFAULT_ECO_CLK_FREQ_32MHZ / (1UL << (uint16_t)sysClkDiv);
@@ -800,7 +833,7 @@ static cy_en_ble_eco_status_t Cy_BLE_HAL_MxdRadioEnableClocks(cy_en_ble_eco_freq
                 blellDivider = (uint16_t)CY_BLE_MXD_RADIO_CLK_DIV_2 - blerdDivider;
             }
             temp &= (uint16_t) ~CY_BLE_RF_DCXO_BUF_CFG_REG_XTAL_32M_SEL_BIT;
-            temp |= (uint16_t)(CY_BLE_MXD_RADIO_CLK_BUF_AMP_16M_LARGE << CY_BLE_RF_DCXO_BUF_CFG_REG_BUF_AMP_SEL_SHIFT);
+            temp |= (uint16_t)((uint32_t)CY_BLE_MXD_RADIO_CLK_BUF_AMP_16M_LARGE << CY_BLE_RF_DCXO_BUF_CFG_REG_BUF_AMP_SEL_SHIFT);
 
             /* Update cy_BleEcoClockFreqHz for the proper Cy_SysLib_Delay functionality */
             cy_BleEcoClockFreqHz = CY_BLE_DEFAULT_ECO_CLK_FREQ_16MHZ / (1UL << (uint16_t)sysClkDiv);
@@ -865,6 +898,11 @@ static cy_en_ble_eco_status_t Cy_BLE_HAL_MxdRadioEnableClocks(cy_en_ble_eco_freq
     }
     return(status);
 }
+#endif  /* !((CY_CPU_CORTEX_M4) && (defined(CY_DEVICE_SECURE))) */
+
+CY_MISRA_BLOCK_END('MISRA C-2012 Rule 10.8');
+
+CY_MISRA_BLOCK_END('MISRA C-2012 Rule 10.4');
 
 #ifdef __cplusplus
 }

@@ -29,9 +29,10 @@
 #include "socket_api.h"
 #include "net_interface.h"
 #include "common_functions.h"
+
 #include "libDHCPv6/libDHCPv6.h"
 #include "NWK_INTERFACE/Include/protocol.h" // just for protocol_core_monotonic_time
-
+#include "Common_Protocols/ip.h"
 #include "dhcp_service_api.h"
 #ifdef HAVE_DHCPV6
 #define TRACE_GROUP    "dhcp"
@@ -87,9 +88,17 @@ typedef struct {
 typedef NS_LIST_HEAD(msg_tr_t, link) tr_list_t;
 
 typedef struct {
+    dhcp_relay_neighbour_cb *recv_notify_cb;
+    int8_t interface_id;
+    ns_list_link_t link;
+} relay_notify_t;
+typedef NS_LIST_HEAD(relay_notify_t, link) relay_notify_list_t;
+
+typedef struct {
     ns_address_t src_address;
     server_instance_list_t srv_list;
     relay_instance_list_t relay_list;
+    relay_notify_list_t notify_list;
     tr_list_t tr_list;
     int8_t dhcp_server_socket;
     int8_t dhcp_client_socket;
@@ -134,6 +143,7 @@ bool dhcp_service_allocate(void)
         if (dhcp_service) {
             ns_list_init(&dhcp_service->srv_list);
             ns_list_init(&dhcp_service->relay_list);
+            ns_list_init(&dhcp_service->notify_list);
             ns_list_init(&dhcp_service->tr_list);
             dhcp_service->dhcp_client_socket = -1;
             dhcp_service->dhcp_server_socket = -1;
@@ -255,6 +265,16 @@ static uint16_t dhcp_service_relay_interface_get(int8_t  interface_id)
     return 0;
 }
 
+static relay_notify_t *dhcp_service_notify_find(int8_t interface_id)
+{
+    relay_notify_t *result = NULL;
+    ns_list_foreach(relay_notify_t, cur_ptr, &dhcp_service->notify_list) {
+        if (cur_ptr->interface_id == interface_id) {
+            result = cur_ptr;
+        }
+    }
+    return result;
+}
 
 
 static relay_instance_t *dhcp_service_relay_find(uint16_t instance_id)
@@ -294,6 +314,8 @@ void recv_dhcp_server_msg(void *cb_res)
     if (sckt_data->event_type != SOCKET_DATA || sckt_data->d_len < 4) {
         return;
     }
+    relay_notify_t *neigh_notify = NULL;
+
     tr_debug("dhcp Server recv request");
     msg_tr_ptr = dhcp_tr_create();
     msg_ptr = ns_dyn_mem_temporary_alloc(sckt_data->d_len);
@@ -322,6 +344,9 @@ void recv_dhcp_server_msg(void *cb_res)
     } else if (msg_type == DHCPV6_RELAY_REPLY) {
         tr_error("Relay reply drop at server");
         goto cleanup;
+    } else {
+        //Search only for direct messages here
+        neigh_notify = dhcp_service_notify_find(sckt_data->interface_id);
     }
 
     //TODO use real function from lib also call validity check
@@ -331,6 +356,11 @@ void recv_dhcp_server_msg(void *cb_res)
         tr_error("Malformed packet");
         goto cleanup;
     }
+
+    if (neigh_notify && neigh_notify->recv_notify_cb) {
+        neigh_notify->recv_notify_cb(sckt_data->interface_id, msg_tr_ptr->addr.address);
+    }
+
     msg_tr_ptr->socket = sckt_data->socket_id;
     // call all receivers until found.
     ns_list_foreach(server_instance_t, cur_ptr, &dhcp_service->srv_list) {
@@ -408,7 +438,7 @@ void recv_dhcp_relay_msg(void *cb_res)
     uint8_t *ptr = msg_iov[1].iov_base;
     uint8_t msg_type = *ptr;
 
-
+    int16_t tc = 0;
     if (msg_type == DHCPV6_RELAY_FORWARD) {
         tr_error("Drop not supported DHCPv6 forward at Agent");
         goto cleanup;
@@ -451,6 +481,12 @@ void recv_dhcp_relay_msg(void *cb_res)
         libdhcpv6_dhcp_relay_msg_write(relay_frame, DHCPV6_RELAY_FORWARD, 0, src_address.address, gp_address);
         libdhcpv6_dhcp_option_header_write(relay_frame + 34, msg_len);
 
+        //Update Neighbour table if necessary
+        relay_notify_t *neigh_notify = dhcp_service_notify_find(sckt_data->interface_id);
+        if (neigh_notify && neigh_notify->recv_notify_cb) {
+            neigh_notify->recv_notify_cb(sckt_data->interface_id, src_address.address);
+        }
+
         //Copy DST address
         memcpy(src_address.address, relay_srv->server_address, 16);
         src_address.type = ADDRESS_IPV6;
@@ -462,7 +498,10 @@ void recv_dhcp_relay_msg(void *cb_res)
         msg_iov[0].iov_len = 38;
         msg_iov[1].iov_len = msg_len;
         tr_debug("Forward Client msg to server");
+        tc = IP_DSCP_CS6 << IP_TCLASS_DSCP_SHIFT;
+
     }
+    socket_setsockopt(sckt_data->socket_id, SOCKET_IPPROTO_IPV6, SOCKET_IPV6_TCLASS, &tc, sizeof(tc));
     socket_sendmsg(sckt_data->socket_id, &msghdr, NS_MSG_LEGACY0);
 cleanup:
     ns_dyn_mem_free(msg_iov[1].iov_base);
@@ -810,6 +849,8 @@ void dhcp_service_send_message(msg_tr_t *msg_tr_ptr)
 
     if (msg_tr_ptr->relay_start) {
         //Build Relay Reply only server do this
+        int16_t tc = IP_DSCP_CS6 << IP_TCLASS_DSCP_SHIFT;
+        socket_setsockopt(msg_tr_ptr->socket, SOCKET_IPPROTO_IPV6, SOCKET_IPV6_TCLASS, &tc, sizeof(tc));
         ns_iovec_t data_vector[2];
         ns_msghdr_t msghdr;
         memcpy(msg_tr_ptr->addr.address, msg_tr_ptr->relay_start + 2, 16);
@@ -837,6 +878,8 @@ void dhcp_service_send_message(msg_tr_t *msg_tr_ptr)
         retval = socket_sendmsg(msg_tr_ptr->socket, &msghdr, NS_MSG_LEGACY0);
 
     } else {
+        int16_t tc = 0;
+        socket_setsockopt(msg_tr_ptr->socket, SOCKET_IPPROTO_IPV6, SOCKET_IPV6_TCLASS, &tc, sizeof(tc));
         retval = socket_sendto(msg_tr_ptr->socket, &msg_tr_ptr->addr, msg_tr_ptr->msg_ptr, msg_tr_ptr->msg_len);
     }
     if (retval != 0) {
@@ -884,6 +927,31 @@ bool dhcp_service_timer_tick(uint16_t ticks)
     }
     return activeTimerNeed;
 }
+
+int dhcp_service_link_local_rx_cb_set(int8_t interface_id, dhcp_relay_neighbour_cb *notify_cb)
+{
+    if (dhcp_service == NULL) {
+        return -1;
+    }
+
+    relay_notify_t *notify_srv = dhcp_service_notify_find(interface_id);
+    if (notify_srv) {
+        notify_srv->recv_notify_cb = notify_cb;
+        return 0;
+    }
+
+
+    notify_srv = ns_dyn_mem_alloc(sizeof(relay_notify_t));
+    if (!notify_srv) {
+        return -1;
+    }
+    ns_list_add_to_start(&dhcp_service->notify_list, notify_srv);
+
+    notify_srv->recv_notify_cb = notify_cb;
+    notify_srv->interface_id = interface_id;
+    return 0;
+}
+
 #else
 uint16_t dhcp_service_init(int8_t interface_id, dhcp_instance_type_e instance_type, dhcp_service_receive_req_cb *receive_req_cb)
 {
@@ -946,6 +1014,13 @@ bool dhcp_service_timer_tick(uint16_t ticks)
 void dhcp_service_req_remove_all(void *msg_class_ptr)
 {
     (void)msg_class_ptr;
+}
+
+int dhcp_service_link_local_rx_cb_set(int8_t interface_id, dhcp_relay_neighbour_cb *notify_cb)
+{
+    (void) interface_id;
+    (void) notify_cb;
+    return -1;
 }
 
 #endif

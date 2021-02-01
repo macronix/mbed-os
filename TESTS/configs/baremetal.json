@@ -13,7 +13,6 @@
         "filesystem",
         "littlefs",
         "littlefs2",
-        "mbed-trace",
         "device_key",
         "storage_tdb_internal",
         "storage_filesystem",
@@ -26,19 +25,22 @@
         "system-storage",
         "SecureStore",
         "storage",
+        "kvstore",
+        "tdbstore",
+        "filesystemstore",
         "kv-global-api",
         "direct-access-devicekey",
         "kv-config",
         "events",
         "sd",
         "qspif",
+        "ospif",
         "spif-driver",
         "cryptocell310",
         "drivers-usb"
     ],
     "target_overrides": {
         "*": {
-            "mbed-trace.fea-ipv6": false,
             "target.c_lib": "small"
         }
      }

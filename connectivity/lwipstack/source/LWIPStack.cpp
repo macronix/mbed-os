@@ -1,5 +1,6 @@
 /* LWIP implementation of NSAPI NetworkStack
  * Copyright (c) 2017 ARM Limited
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -664,6 +665,12 @@ nsapi_error_t LWIP::setsockopt(nsapi_socket_t handle, int level, int optname, co
             return err_remap(igmp_err);
         }
 
+        case NSAPI_IPTOS:
+            if (optlen != sizeof(u8_t)) {
+                return NSAPI_ERROR_UNSUPPORTED;
+            }
+            s->conn->pcb.ip->tos = (u8_t)(*(const int *)optval);
+            return 0;
         default:
             return NSAPI_ERROR_UNSUPPORTED;
     }

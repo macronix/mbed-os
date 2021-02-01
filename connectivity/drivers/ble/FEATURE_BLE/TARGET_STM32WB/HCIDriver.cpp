@@ -17,10 +17,9 @@
  */
 
 #include <stdio.h>
-#include "ble/common/ble/blecommon.h"
-#include "BLEInstanceBase.h"
-#include "CordioHCIDriver.h"
-#include "CordioHCITransportDriver.h"
+#include "ble/common/blecommon.h"
+#include "ble/driver/CordioHCIDriver.h"
+#include "ble/driver/CordioHCITransportDriver.h"
 #include "mbed.h"
 #include "hci_api.h"
 #include "hci_cmd.h"
@@ -33,6 +32,7 @@
 /* STM32WB include files */
 #include "stm32wbxx_ll_ipcc.h"
 #include "stm32wbxx_ll_system.h"
+#include "ble_bufsize.h"
 #include "tl.h"
 #include "shci.h"
 #include "shci_tl.h"

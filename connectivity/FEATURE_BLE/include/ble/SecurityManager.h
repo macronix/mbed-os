@@ -19,19 +19,19 @@
 #ifndef BLE_SECURITY_MANAGER_H_
 #define BLE_SECURITY_MANAGER_H_
 
-#include <stdint.h>
-#include "CallChainOfFunctionPointersWithContext.h"
-#include "platform/Callback.h"
+#include <cstdint>
 
-#include "ble/common/ble/BLETypes.h"
-#include "ble/common/ble/blecommon.h"
-
-#include "ble/common/ble/BLETypes.h"
-#include "ble/internal/SecurityDb.h"
-#include "ble/internal/PalConnectionMonitor.h"
-#include "ble/internal/PalSecurityManager.h"
+#include "ble/common/BLETypes.h"
+#include "ble/common/blecommon.h"
+#include "ble/common/CallChainOfFunctionPointersWithContext.h"
 
 namespace ble {
+
+#if !defined(DOXYGEN_ONLY)
+namespace impl {
+class SecurityManager;
+}
+#endif // !defined(DOXYGEN_ONLY)
 
 /**
  * Overview
@@ -186,9 +186,6 @@ namespace ble {
  * @endverbatim
  *
  */
-#if !defined(DOXYGEN_ONLY)
-namespace interface {
-#endif // !defined(DOXYGEN_ONLY)
 class SecurityManager
 {
 public:
@@ -250,6 +247,7 @@ public:
         // Pairing
         //
 
+#if BLE_ROLE_PERIPHERAL
         /**
          * Request application to accept or reject pairing. Application should respond by
          * calling the appropriate function: acceptPairingRequest or cancelPairingRequest
@@ -259,6 +257,7 @@ public:
         virtual void pairingRequest(ble::connection_handle_t connectionHandle) {
             (void)connectionHandle;
         }
+#endif // BLE_ROLE_PERIPHERAL
 
         /**
          * Indicate to the application that pairing has completed.
@@ -330,6 +329,7 @@ public:
             (void)passkey;
         }
 
+#if BLE_FEATURE_SECURE_CONNECTIONS
         /**
          * Indicate to the application that a confirmation is required. This is used
          * when the device does not have a keyboard but has a yes/no button. The device
@@ -342,6 +342,7 @@ public:
         virtual void confirmationRequest(ble::connection_handle_t connectionHandle) {
             (void)connectionHandle;
         }
+#endif // BLE_FEATURE_SECURE_CONNECTIONS
 
         /**
          * Indicate to the application that a passkey is required. The application should
@@ -353,6 +354,7 @@ public:
             (void)connectionHandle;
         }
 
+#if BLE_FEATURE_SECURE_CONNECTIONS
         /**
          * Notify the application that a key was pressed by the peer during passkey entry.
          *
@@ -363,6 +365,7 @@ public:
             (void)connectionHandle;
             (void)keypress;
         }
+#endif // BLE_FEATURE_SECURE_CONNECTIONS
 
         /**
          * Indicate to the application it needs to return legacy pairing OOB to the stack.
@@ -405,6 +408,7 @@ public:
         // Keys
         //
 
+#if BLE_FEATURE_SIGNING
         /**
          * Deliver the signing key to the application.
          *
@@ -417,13 +421,13 @@ public:
             (void)csrk;
             (void)authenticated;
         }
+#endif // BLE_FEATURE_SIGNING
+
         /**
          * Prevent polymorphic deletion and avoid unnecessary virtual destructor
          * as the SecurityManager class will never delete the instance it contains.
          */
-        ~EventHandler()
-        {
-        }
+        ~EventHandler() = default;
     };
 
     /*
@@ -457,9 +461,9 @@ public:
         bool                     enableBonding = true,
         bool                     requireMITM   = true,
         SecurityIOCapabilities_t iocaps        = IO_CAPS_NONE,
-        const Passkey_t          passkey       = NULL,
+        const Passkey_t          passkey       = nullptr,
         bool                     signing       = true,
-        const char              *dbFilepath    = NULL
+        const char              *dbFilepath    = nullptr
     );
 
     /**
@@ -473,7 +477,7 @@ public:
      *
      * @return BLE_ERROR_NONE on success.
      */
-    ble_error_t setDatabaseFilepath(const char *dbFilepath = NULL);
+    ble_error_t setDatabaseFilepath(const char *dbFilepath = nullptr);
 
     /**
      * Notify all registered onShutdown callbacks that the SecurityManager is
@@ -488,7 +492,7 @@ public:
      *
      * @return BLE_ERROR_NONE on success.
      */
-    ble_error_t reset(void);
+    ble_error_t reset();
 
     /**
      * Normally all bonding information is lost when device is reset, this requests that the stack
@@ -511,7 +515,7 @@ public:
      * @retval BLE_ERROR_INVALID_STATE    If the API is called without module initialization or
      *                                    application registration.
      */
-    ble_error_t purgeAllBondingState(void);
+    ble_error_t purgeAllBondingState();
 
     /**
      * Create a list of addresses from all peers in the bond table and generate
@@ -531,6 +535,7 @@ public:
     // Pairing
     //
 
+#if BLE_ROLE_CENTRAL
     /**
      * Request pairing with the peer. Called by the master.
      * @note Slave can call requestAuthentication or setLinkEncryption to achieve security.
@@ -539,7 +544,9 @@ public:
      * @return BLE_ERROR_NONE or appropriate error code indicating the failure reason.
      */
     ble_error_t requestPairing(ble::connection_handle_t connectionHandle);
+#endif // BLE_ROLE_CENTRAL
 
+#if BLE_ROLE_PERIPHERAL
     /**
      * Accept the pairing request. Called as a result of pairingRequest being called
      * on the event handler.
@@ -548,6 +555,7 @@ public:
      * @return BLE_ERROR_NONE or appropriate error code indicating the failure reason.
      */
     ble_error_t acceptPairingRequest(ble::connection_handle_t connectionHandle);
+#endif // BLE_ROLE_PERIPHERAL
 
     /**
      * Reject pairing request if the local device is the slave or cancel an outstanding
@@ -582,6 +590,7 @@ public:
     // Feature support
     //
 
+#if BLE_FEATURE_SECURE_CONNECTIONS
     /**
      * Allow of disallow the use of legacy pairing in case the application only wants
      * to force the use of Secure Connections. If legacy pairing is disallowed and either
@@ -599,6 +608,7 @@ public:
      * @return BLE_ERROR_NONE or appropriate error code indicating the failure reason.
      */
     ble_error_t getSecureConnectionsSupport(bool *enabled);
+#endif // BLE_FEATURE_SECURE_CONNECTIONS
 
     ////////////////////////////////////////////////////////////////////////////
     // Security settings
@@ -771,6 +781,7 @@ public:
      */
     ble_error_t setOOBDataUsage(ble::connection_handle_t connectionHandle, bool useOOB, bool OOBProvidesMITM = true);
 
+#if BLE_FEATURE_SECURE_CONNECTIONS
     /**
      * Report to the stack if the passkey matches or not. Used during pairing to provide MITM protection.
      *
@@ -779,6 +790,7 @@ public:
      * @return BLE_ERROR_NONE or appropriate error code indicating the failure reason.
      */
     ble_error_t confirmationEntered(ble::connection_handle_t connectionHandle, bool confirmation);
+#endif // BLE_FEATURE_SECURE_CONNECTIONS
 
     /**
      * Supply the stack with the user entered passkey.
@@ -789,6 +801,7 @@ public:
      */
     ble_error_t passkeyEntered(ble::connection_handle_t connectionHandle, Passkey_t passkey);
 
+#if BLE_FEATURE_SECURE_CONNECTIONS
     /**
      * Send a notification to the peer that the user pressed a key on the local device.
      * @note This will only be delivered if the keypress notifications have been enabled during pairing.
@@ -798,6 +811,7 @@ public:
      * @return BLE_ERROR_NONE or appropriate error code indicating the failure reason.
      */
     ble_error_t sendKeypressNotification(ble::connection_handle_t connectionHandle, ble::Keypress_t keypress);
+#endif // BLE_FEATURE_SECURE_CONNECTIONS
 
     /**
      * Supply the stack with the OOB data for legacy connections.
@@ -808,6 +822,7 @@ public:
      */
     ble_error_t legacyPairingOobReceived(const ble::address_t *address, const ble::oob_tk_t *tk);
 
+#if BLE_FEATURE_SECURE_CONNECTIONS
     /**
      * Supply the stack with the OOB data for secure connections.
      *
@@ -818,11 +833,13 @@ public:
      * @return BLE_ERROR_NONE or appropriate error code indicating the failure reason.
      */
     ble_error_t oobReceived(const ble::address_t *address, const ble::oob_lesc_value_t *random, const ble::oob_confirm_t *confirm);
+#endif // BLE_FEATURE_SECURE_CONNECTIONS
 
     ////////////////////////////////////////////////////////////////////////////
     // Keys
     //
 
+#if BLE_FEATURE_SIGNING
     /**
      * Retrieves a signing key through a signingKey event.
      * If a signing key is not present, pairing/authentication will be attempted.
@@ -835,11 +852,13 @@ public:
      * @return BLE_ERROR_NONE or appropriate error code indicating the failure reason.
      */
     ble_error_t getSigningKey(ble::connection_handle_t connectionHandle, bool authenticated);
+#endif // BLE_FEATURE_SIGNING
 
     ////////////////////////////////////////////////////////////////////////////
     // Privacy
     //
 
+#if BLE_FEATURE_PRIVACY
     /**
      * Sets how often the address is rotated when privacy is enabled.
      *
@@ -850,6 +869,7 @@ public:
     ble_error_t setPrivateAddressTimeout(
         uint16_t timeout_in_seconds
     );
+#endif // BLE_FEATURE_PRIVACY
 
     /* Event callback handlers. */
 public:
@@ -870,7 +890,10 @@ public:
     void onShutdown(const SecurityManagerShutdownCallback_t& callback);
 
     template <typename T>
-    void onShutdown(T *objPtr, void (T::*memberPtr)(const SecurityManager *));
+    void onShutdown(T *objPtr, void (T::*memberPtr)(const SecurityManager *))
+    {
+        onShutdown({objPtr, memberPtr});
+    }
 
     /**
      * Provide access to the callchain of shutdown event callbacks.
@@ -894,17 +917,17 @@ public:
     /** For backwards compatibility. This enum is now in BLETypes.h
      * @deprecated use the enum in ble namespace */
     typedef ble::Keypress_t Keypress_t;
+
+    SecurityManager(impl::SecurityManager* impl) : impl(impl) {}
+    SecurityManager(const SecurityManager&) = delete;
+    SecurityManager& operator=(const SecurityManager&) = delete;
 #endif // !defined(DOXYGEN_ONLY)
+
+private:
+    impl::SecurityManager *impl;
 };
 
-#if !defined(DOXYGEN_ONLY)
-} // namespace interface
-#endif // !defined(DOXYGEN_ONLY)
 } // ble
-
-/* This includes the concrete class implementation, to provide a an alternative API implementation
- * disable ble-api-implementation and place your header in a path with the same structure */
-#include "ble/internal/SecurityManagerImpl.h"
 
 /** @deprecated Use the namespaced ble::SecurityManager instead of the global SecurityManager. */
 using ble::SecurityManager;

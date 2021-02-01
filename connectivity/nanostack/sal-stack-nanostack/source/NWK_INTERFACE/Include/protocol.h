@@ -57,6 +57,7 @@ struct arm_device_driver_list;
 struct mlme_security_s;
 struct load_balance_api;
 struct nwk_wpan_nvm_api;
+struct red_info_s;
 
 #define SLEEP_MODE_REQ      0x80
 #define SLEEP_PERIOD_ACTIVE 0x40
@@ -238,6 +239,7 @@ typedef struct arm_15_4_mac_parameters_t {
     uint16_t pan_id;
     uint16_t mac_short_address;
     mac_cordinator_s mac_cordinator_info;
+    cca_threshold_table_s cca_thr_table;
     uint8_t number_of_fhss_channel_retries;
     /* MAC Beacon info */
     uint8_t *mac_beacon_payload;
@@ -444,6 +446,7 @@ struct protocol_interface_info_entry {
     struct auth_info *pana_sec_info_temp;
     br_info_t *border_router_setup;
     struct load_balance_api *lb_api;
+    struct red_info_s *random_early_detection;
     neigh_cache_s neigh_cache;
     pan_blaclist_cache_s pan_blaclist_cache;
     pan_coordinator_blaclist_cache_s pan_cordinator_black_list;
