@@ -52,7 +52,16 @@ using namespace mbed;
 #define OSPIF_NO_QUAD_ENABLE        (-1)
 
 // Configuration Register2 address
-#define OSPIF_CR2_OPI_EN_ADDR    0x00000000
+#define OSPIF_CR2_OPI_EN_ADDR         0x00000000
+#define OSPIF_CR2_BANK_STATUS_ADDR    0xc0000000
+#define OSPIF_CR2_RWWDI               ((uint8_t)0x00)        /*!< No active program or erase operation */
+#define OSPIF_CR2_RWWDS               ((uint8_t)0x01)        /*!< Program/erase in other bank */
+#define OSPIF_CR2_RWWBS               ((uint8_t)0x03)        /*!< program/erase operation in addressed bank */
+
+#ifdef MX_FLASH_SUPPORT_RWW
+#define MX25LM51245G_BANK_SIZE                    0x01000000                    /* 16 MBytes */
+#define MX25LM51245G_BANK_SIZE_MASK               ~(MX25LM51245G_BANK_SIZE - 1) /* 0xFF000000 */
+#endif
 
 /* SFDP Header Parsing */
 /***********************/
@@ -232,6 +241,11 @@ OSPIFBlockDevice::OSPIFBlockDevice(PinName io0, PinName io1, PinName io2, PinNam
     _attempt_4_byte_addressing = true;
     _4byte_msb_reg_write_inst = OSPIF_INST_4BYTE_REG_WRITE_DEFAULT;
     _support_4_byte_inst = false;
+
+#ifdef MX_FLASH_SUPPORT_RWW
+    _wait_flag = NOT_STARTED;
+    _busy_bank = 0xffffffff;
+#endif
 }
 
 int OSPIFBlockDevice::init()
@@ -358,6 +372,17 @@ int OSPIFBlockDevice::deinit()
         return result;
     }
 
+    if (false == _is_mem_ready()) {
+        tr_error("Device not ready after write, failed");
+           /* program_failed = true;
+            status = OSPIF_BD_ERROR_READY_FAILED;
+            goto exit_point;*/
+    }
+
+#ifdef MX_FLASH_SUPPORT_RWW
+    _wait_flag = NOT_STARTED;
+#endif
+
     change_mode(SPI);
 
     // Disable Device for Writing
@@ -383,6 +408,29 @@ int OSPIFBlockDevice::read(void *buffer, bd_addr_t addr, bd_size_t size)
     int status = OSPIF_BD_ERROR_OK;
     tr_debug("Read Inst: 0x%xh", _read_instruction);
 
+#ifdef MX_FLASH_SUPPORT_RWW
+    bool need_wait;
+    need_wait = (_wait_flag != NOT_STARTED) && ((addr & MX25LM51245G_BANK_SIZE_MASK) == _busy_bank);
+
+    // Wait for ready
+    if (need_wait) {
+
+        _busy_mutex.lock();
+
+        if (_is_mem_ready_rww(addr, false) == false) {
+            return OSPIF_BD_ERROR_OK;
+        }
+
+    } else { 
+      if (_wait_flag == WRITE_WAIT_STARTED) {
+        printf("\r\n RWW1 CNT");
+      } else if (_wait_flag == ERASE_WAIT_STARTED) {
+        printf("\r\n RWE2 CNT");
+      } else  printf("\r\n RWE2333 CNT");
+    }
+
+#endif
+
     _mutex.lock();
 
     // In DOPI mode, the number of read data should be even
@@ -397,8 +445,13 @@ int OSPIFBlockDevice::read(void *buffer, bd_addr_t addr, bd_size_t size)
 
     _mutex.unlock();
 
-    return status;
+#ifdef MX_FLASH_SUPPORT_RWW
+    if (need_wait) {
+        _busy_mutex.unlock();
+    } 
+#endif
 
+    return status;
 }
 
 int OSPIFBlockDevice::program(const void *buffer, bd_addr_t addr, bd_size_t size)
@@ -417,6 +470,16 @@ int OSPIFBlockDevice::program(const void *buffer, bd_addr_t addr, bd_size_t size
         offset = addr % _page_size_bytes;
         chunk = (offset + size < _page_size_bytes) ? size : (_page_size_bytes - offset);
         written_bytes = chunk;
+
+#ifdef MX_FLASH_SUPPORT_RWW
+        _busy_mutex.lock();
+
+        // Wait for ready
+        if (_is_mem_ready_rww(addr, true) == false) {
+            return OSPIF_BD_ERROR_OK;
+        }
+
+#endif
 
         _mutex.lock();
 
@@ -437,10 +500,14 @@ int OSPIFBlockDevice::program(const void *buffer, bd_addr_t addr, bd_size_t size
             goto exit_point;
         }
 
-        buffer = static_cast<const uint8_t *>(buffer) + chunk;
-        addr += chunk;
-        size -= chunk;
+#ifdef MX_FLASH_SUPPORT_RWW
+        _wait_flag = WRITE_WAIT_STARTED;
+        _busy_bank = addr & MX25LM51245G_BANK_SIZE_MASK;
 
+        _mutex.unlock();
+
+        _busy_mutex.unlock();
+#else
         if (false == _is_mem_ready()) {
             tr_error("Device not ready after write, failed");
             program_failed = true;
@@ -448,6 +515,11 @@ int OSPIFBlockDevice::program(const void *buffer, bd_addr_t addr, bd_size_t size
             goto exit_point;
         }
         _mutex.unlock();
+#endif
+        
+        buffer = static_cast<const uint8_t *>(buffer) + chunk;
+        addr += chunk;
+        size -= chunk;
     }
 
 exit_point:
@@ -511,6 +583,15 @@ int OSPIFBlockDevice::erase(bd_addr_t addr, bd_size_t size)
         tr_debug("Erase - Region: %d, Type:%d ",
                  region, type);
 
+#ifdef MX_FLASH_SUPPORT_RWW
+        _busy_mutex.lock();
+
+        // Wait for ready
+        if (_is_mem_ready_rww(addr, true) == false) {
+            return OSPIF_BD_ERROR_OK;
+        }
+#endif
+
         _mutex.lock();
 
         if (_set_write_enable() != 0) {
@@ -527,15 +608,14 @@ int OSPIFBlockDevice::erase(bd_addr_t addr, bd_size_t size)
             goto exit_point;
         }
 
-        addr += eu_size;
-        size -= eu_size;
+#ifdef MX_FLASH_SUPPORT_RWW
+        _wait_flag = ERASE_WAIT_STARTED;
+        _busy_bank = addr & MX25LM51245G_BANK_SIZE_MASK;
 
-        if ((size > 0) && (addr > _sfdp_info.smptbl.region_high_boundary[region])) {
-            // erase crossed to next region
-            region++;
-            bitfield = _sfdp_info.smptbl.region_erase_types_bitfld[region];
-        }
+        _mutex.unlock();
 
+        _busy_mutex.unlock();
+#else
         if (false == _is_mem_ready()) {
             tr_error("OSPI After Erase Device not ready - failed");
             erase_failed = true;
@@ -544,6 +624,16 @@ int OSPIFBlockDevice::erase(bd_addr_t addr, bd_size_t size)
         }
 
         _mutex.unlock();
+#endif
+
+        addr += eu_size;
+        size -= eu_size;
+
+        if ((size > 0) && (addr > _sfdp_info.smptbl.region_high_boundary[region])) {
+            // erase crossed to next region
+            region++;
+            bitfield = _sfdp_info.smptbl.region_erase_types_bitfld[region];
+        }
     }
 
 exit_point:
