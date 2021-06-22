@@ -25,6 +25,7 @@
 #include "stm32l5xx_ll_tim.h"
 #include "stm32l5xx_ll_rtc.h"
 #include "stm32l5xx_ll_pwr.h"
+#include "stm32l5xx_ll_rcc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -117,6 +118,9 @@ struct i2c_s {
     uint8_t slave;
     volatile uint8_t pending_slave_tx_master_rx;
     volatile uint8_t pending_slave_rx_maxter_tx;
+    uint8_t *slave_rx_buffer;
+    volatile uint8_t slave_rx_buffer_size;
+    volatile uint8_t slave_rx_count;
 #endif
 #if DEVICE_I2C_ASYNCH
     uint32_t address;
@@ -164,6 +168,22 @@ struct qspi_s {
     PinName io3;
     PinName sclk;
     PinName ssel;
+};
+
+struct ospi_s {
+    OSPI_HandleTypeDef handle;
+    OSPIName ospi;
+    PinName io0;
+    PinName io1;
+    PinName io2;
+    PinName io3;
+    PinName io4;
+    PinName io5;
+    PinName io6;
+    PinName io7;
+    PinName sclk;
+    PinName ssel;
+    PinName dqs;
 };
 
 #ifdef __cplusplus

@@ -1,5 +1,6 @@
 /* mbed Microcontroller Library
  * Copyright (c) 2006-2013 ARM Limited
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+/* MBED TARGET LIST: LPC1114 */
+
 #ifndef MBED_PINNAMES_H
 #define MBED_PINNAMES_H
 
@@ -110,8 +114,8 @@ typedef enum {
     LED3 = P1_5,
     LED4 = P0_7,
 
-    USBTX = P1_7,
-    USBRX = P1_6,
+    CONSOLE_TX = P1_7,
+    CONSOLE_RX = P1_6,
 
     // mbed DIP Pin Names (LPCXpresso LPC1114)
 //    xp4  = P0_0,

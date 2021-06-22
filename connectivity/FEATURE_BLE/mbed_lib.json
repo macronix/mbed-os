@@ -92,6 +92,44 @@
             "help": "How many advertising sets the API can handle (this limits how much the stack can handle). Must be non-zero",
             "value": 15,
             "macro_name": "BLE_GAP_MAX_ADVERTISING_SETS"
+        },
+        "ble-gap-host-based-private-address-resolution": {
+            "help": "Perform address resolution on the host, not the controller. Controller based privacy is preferred as it happens lower down the stack but this can be used in case controller based privacy is unavailable. If this is enabled the controller will not be used for privacy.",
+            "value": true,
+            "macro_name": "BLE_GAP_HOST_BASED_PRIVATE_ADDRESS_RESOLUTION"
+        },
+        "ble-gap-max-advertising-reports-pending-address-resolution": {
+            "help": "How many advertising reports can be pending while awaiting private address resolution. This is only used if host privacy is enabled and controller privacy is disabled. Must be non-zero",
+            "value": 16,
+            "macro_name": "BLE_GAP_MAX_ADVERTISING_REPORTS_PENDING_ADDRESS_RESOLUTION"
+        },
+        "ble-gap-host-privacy-resolved-cache-size": {
+            "help": "Used for host privacy. How many last resolved addresses to store to speed up resolution. This is especially valuable for resolving advertising which creates repeated queries for the same address.",
+            "value": 16,
+            "macro_name": "BLE_GAP_HOST_PRIVACY_RESOLVED_CACHE_SIZE"
+        },
+        "ble-gap-host-max-advertising-start-commands": {
+            "help": "There can only be one outstanding advertising set command sent to the controller. This determines how many advertising set start commands can be queued on the host. Must be between 1 and BLE_GAP_MAX_ADVERTISING_SETS. If privacy is used, this must be at equal or higher than then number of simultaneously active sets with a private address.",
+            "value": 4,
+            "macro_name": "BLE_GAP_HOST_MAX_OUTSTANDING_ADVERTISING_START_COMMANDS"
+        },
+
+        "ble-passkey-display-reversed-digits-deprecation": {
+          "help": "This option is part of the deprecation process. Set this to false to remove the deprecation notice. When set to true, the digits in the SecurityManager passkeyDiplay event are reversed. When set to false the digits are in the correct order.",
+          "value": true,
+          "macro_name": "BLE_PASSKEY_DISPLAY_REVERSED_DIGITS_DEPRECATION"
+        },
+        "trace-human-readable-enums": {
+            "help": "More hexadecimal values in traces will be printed as human readable strings.",
+            "value": false
+        }
+    },
+    "target_overrides": {
+        "MCU_NRF52840": {
+            "ble-gap-host-based-private-address-resolution": false
+        },
+        "NUCLEO_WB55RG": {
+            "ble-gap-host-based-private-address-resolution": false
         }
     }
 }

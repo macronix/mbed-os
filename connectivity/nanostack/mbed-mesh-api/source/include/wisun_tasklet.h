@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2019 ARM Limited
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -124,6 +125,14 @@ int wisun_tasklet_remove_trusted_certificates(void);
  * \return < 0 in case of errors
  */
 int wisun_tasklet_statistics_start(void);
+
+/*
+ * \brief Reset Wi-SUN statistics
+ *
+ * \return 0 Statistics start successful
+ * \return < 0 in case of errors
+ */
+int wisun_tasklet_statistics_reset(void);
 
 /*
  * \brief Reads Wi-SUN network statistics

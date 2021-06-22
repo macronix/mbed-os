@@ -78,7 +78,7 @@ typedef enum {
 } mlme_primitive;
 
 /**
- * \struct mac_description_storage_size_t
+ * \struct mac_description_storage_size_s
  * \brief Container for MAC storage sizes.
  */
 typedef struct mac_description_storage_size_s {
@@ -128,10 +128,11 @@ typedef void mcps_data_request(const mac_api_t *api, const mcps_data_req_t *data
  * @param data MCPS-DATA.request specific values
  * @param ie_ext Information element list to MCPS-DATA.request
  * @param asynch_channel_list Optional channel list to asynch data request. Give NULL when normal data request.
+ * @param priority Data request priority level
  *
  * Asynch data request is mac standard extension. asynch_channel_list include channel mask which channel message is requested to send.
  */
-typedef void mcps_data_request_ext(const mac_api_t *api, const mcps_data_req_t *data, const mcps_data_req_ie_list_t *ie_ext, const struct channel_list_s *asynch_channel_list);
+typedef void mcps_data_request_ext(const mac_api_t *api, const mcps_data_req_t *data, const mcps_data_req_ie_list_t *ie_ext, const struct channel_list_s *asynch_channel_list, mac_data_priority_t priority);
 
 /**
  * @brief mcps_purge_request MCPS_PURGE request call
@@ -181,6 +182,14 @@ typedef void mcps_data_indication_ext(const mac_api_t *api, const mcps_data_ind_
  * @param lqi Link quality to neighbor
  */
 typedef void mcps_ack_data_req_ext(const mac_api_t *api, mcps_ack_data_payload_t *data, int8_t rssi, uint8_t lqi);
+
+
+/**
+ * @brief mcps_edfe_handler Callback for handle and detect edfe frame
+ * @param api The API which handled the response
+ * @param response_message Enhanced message response data and status
+ */
+typedef void mcps_edfe_handler(const mac_api_t *api, mcps_edfe_response_t *response_message);
 
 
 /**
@@ -255,6 +264,15 @@ typedef int8_t mac_api_enable_mcps_ext(mac_api_t *api,
                                        mcps_ack_data_req_ext *ack_data_req_cb);
 
 /**
+ * @brief mac_api_enable_mcps_edfe_ext Initialises MAC 2015 extension for EDFE handler callbacks must be non-NULL.
+ * @param api mac_api_t pointer, which is created by application.
+ * @param edfe_ind_cb Upper layer function to handle and detect EDFE's
+ * @return -1 if error, -2 if OOM, 0 otherwise
+ */
+typedef int8_t mac_api_enable_mcps_edfe_ext(mac_api_t *api,
+                                            mcps_edfe_handler *edfe_ind_cb);
+
+/**
  * \brief Struct mac_api_s defines functions for two-way communications between external MAC and Upper layer.
  * Application creates mac_api_t object by calling external MAC's creator function.
  * Then object is passed to Upper layer which then initializes it's own callback functions.
@@ -263,17 +281,18 @@ typedef int8_t mac_api_enable_mcps_ext(mac_api_t *api,
 struct mac_api_s {
     mac_api_initialize          *mac_initialize;                /**< MAC initialize function to use */
     mac_api_enable_mcps_ext     *mac_mcps_extension_enable;     /**< MAC MCPS IE extension enable function, optional feature */
+    mac_api_enable_mcps_edfe_ext *mac_mcps_edfe_enable;         /**< MAC MCPS MCPS EDFE frame extension enable function, optional feature */
     //External MAC callbacks
     mlme_request                *mlme_req;                      /**< MAC MLME request function to use */
     mcps_data_request           *mcps_data_req;                 /**< MAC MCPS data request function to use */
     mcps_data_request_ext       *mcps_data_req_ext;             /**< MAC MCPS data request with Information element extension function to use */
     mcps_purge_request          *mcps_purge_req;                /**< MAC MCPS purge request function to use */
-
     //Upper layer callbacksMLME_ASSOCIATE
     mcps_data_confirm           *data_conf_cb;                  /**< MAC MCPS data confirm callback function */
     mcps_data_confirm_ext       *data_conf_ext_cb;              /**< MAC MCPS data confirm with payload callback function */
     mcps_data_indication        *data_ind_cb;                   /**< MAC MCPS data indication callback function */
     mcps_data_indication_ext    *data_ind_ext_cb;               /**< MAC MCPS data indication with IE extension's callback function */
+    mcps_edfe_handler           *edfe_ind_cb;                   /**< MAC MCPS EDFE detection extension's callback function */
     mcps_ack_data_req_ext       *enhanced_ack_data_req_cb;      /**< Enhanced ACK IE element and payload request from MAC user */
     mcps_purge_confirm          *purge_conf_cb;                 /**< MAC MCPS purge confirm callback function */
     mlme_confirm                *mlme_conf_cb;                  /**< MAC MLME confirm callback function */
@@ -287,7 +306,7 @@ struct mac_api_s {
 };
 
 /**
- * \struct mac_statistics_t
+ * \struct mac_statistics_s
  * \brief MAC statistics structure.
  */
 typedef struct mac_statistics_s {

@@ -141,7 +141,7 @@
   * @param  None
   * @retval None
   */
-void SystemInit (void)
+__weak void SystemInit (void)
 {
   /* FPU settings ------------------------------------------------------------*/
   #if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
@@ -150,18 +150,32 @@ void SystemInit (void)
 
     /*SEVONPEND enabled so that an interrupt coming from the CPU(n) interrupt signal is
      detectable by the CPU after a WFI/WFE instruction.*/
- SCB->SCR |= SCB_SCR_SEVONPEND_Pos;
+ SCB->SCR |= SCB_SCR_SEVONPEND_Msk;
 
 #ifdef CORE_CM7
   /* Reset the RCC clock configuration to the default reset state ------------*/
+   /* Increasing the CPU frequency */
+  if(FLASH_LATENCY_DEFAULT  > (READ_BIT((FLASH->ACR), FLASH_ACR_LATENCY)))
+  {
+    /* Program the new number of wait states to the LATENCY bits in the FLASH_ACR register */
+	MODIFY_REG(FLASH->ACR, FLASH_ACR_LATENCY, (uint32_t)(FLASH_LATENCY_DEFAULT));
+  }
+
   /* Set HSION bit */
   RCC->CR |= RCC_CR_HSION;
 
   /* Reset CFGR register */
   RCC->CFGR = 0x00000000;
 
-  /* Reset HSEON, CSSON , CSION,RC48ON, CSIKERON PLL1ON, PLL2ON and PLL3ON bits */
+  /* Reset HSEON, HSECSSON, CSION, RC48ON, CSIKERON, PLL1ON, PLL2ON and PLL3ON bits */
   RCC->CR &= 0xEAF6ED7FU;
+
+   /* Decreasing the number of wait states because of lower CPU frequency */
+  if(FLASH_LATENCY_DEFAULT  < (READ_BIT((FLASH->ACR), FLASH_ACR_LATENCY)))
+  {
+    /* Program the new number of wait states to the LATENCY bits in the FLASH_ACR register */
+	MODIFY_REG(FLASH->ACR, FLASH_ACR_LATENCY, (uint32_t)(FLASH_LATENCY_DEFAULT));
+  }
 
   /* Reset D1CFGR register */
   RCC->D1CFGR = 0x00000000;
@@ -173,23 +187,23 @@ void SystemInit (void)
   RCC->D3CFGR = 0x00000000;
 
   /* Reset PLLCKSELR register */
-  RCC->PLLCKSELR = 0x00000000;
+  RCC->PLLCKSELR = 0x02020200;
 
   /* Reset PLLCFGR register */
-  RCC->PLLCFGR = 0x00000000;
+  RCC->PLLCFGR = 0x01FF0000;
   /* Reset PLL1DIVR register */
-  RCC->PLL1DIVR = 0x00000000;
+  RCC->PLL1DIVR = 0x01010280;
   /* Reset PLL1FRACR register */
   RCC->PLL1FRACR = 0x00000000;
 
   /* Reset PLL2DIVR register */
-  RCC->PLL2DIVR = 0x00000000;
+  RCC->PLL2DIVR = 0x01010280;
 
   /* Reset PLL2FRACR register */
 
   RCC->PLL2FRACR = 0x00000000;
   /* Reset PLL3DIVR register */
-  RCC->PLL3DIVR = 0x00000000;
+  RCC->PLL3DIVR = 0x01010280;
 
   /* Reset PLL3FRACR register */
   RCC->PLL3FRACR = 0x00000000;
@@ -217,7 +231,7 @@ void SystemInit (void)
 
   /* Configure the Vector Table location add offset address ------------------*/
 #ifdef VECT_TAB_SRAM
-  SCB->VTOR = D2_AHBSRAM_BASE | VECT_TAB_OFFSET; /* Vector Table Relocation in Internal SRAM */
+  SCB->VTOR = D2_AXISRAM_BASE | VECT_TAB_OFFSET; /* Vector Table Relocation in Internal SRAM */
 #else
 #include "nvic_addr.h"                   // MBED
   SCB->VTOR = NVIC_FLASH_VECTOR_ADDRESS; // MBED
@@ -225,6 +239,13 @@ void SystemInit (void)
 
 #else
 #ifdef CORE_CM7
+
+  /*
+   * Disable the FMC bank1 (enabled after reset).
+   * This, prevents CPU speculation access on this bank which blocks the use of FMC during
+   * 24us. During this time the others FMC master (such as LTDC) cannot use it!
+   */
+  FMC_Bank1_R->BTCR[0] = 0x000030D2;
 
   /* Configure the Vector Table location add offset address ------------------*/
 #ifdef VECT_TAB_SRAM
@@ -330,7 +351,8 @@ void SystemCoreClockUpdate (void)
         break;
 
       default:
-          pllvco = ((float_t)CSI_VALUE / (float_t)pllm) * ((float_t)(uint32_t)(RCC->PLL1DIVR & RCC_PLL1DIVR_N1) + (fracn1/(float_t)0x2000) +(float_t)1 );
+          hsivalue = (HSI_VALUE >> ((RCC->CR & RCC_CR_HSIDIV)>> 3)) ;
+          pllvco = ((float_t)hsivalue / (float_t)pllm) * ((float_t)(uint32_t)(RCC->PLL1DIVR & RCC_PLL1DIVR_N1) + (fracn1/(float_t)0x2000) +(float_t)1 );
         break;
       }
       pllp = (((RCC->PLL1DIVR & RCC_PLL1DIVR_P1) >>9) + 1U ) ;
@@ -343,7 +365,7 @@ void SystemCoreClockUpdate (void)
     break;
 
   default:
-    common_system_clock = CSI_VALUE;
+    common_system_clock = (uint32_t) (HSI_VALUE >> ((RCC->CR & RCC_CR_HSIDIV)>> 3));
     break;
   }
 
@@ -363,7 +385,7 @@ void SystemCoreClockUpdate (void)
 #endif /* DUAL_CORE && CORE_CM4 */
 }
 
-#endif /* DUAL_CORE */
+#endif   /* DUAL_CORE */
 
 /**
   * @}

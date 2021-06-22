@@ -1,6 +1,6 @@
 /***************************************************************************//**
 * \file cy_ble_clk.h
-* \version 3.40.1
+* \version 3.60
 *
 * The header file of the BLE ECO clock driver.
 *
@@ -46,29 +46,26 @@
 * \section group_ble_clk_more_information More Information
 * See the BLE chapter of the device technical reference manual (TRM).
 *
-* \section group_ble_clk_MISRA MISRA-C Compliance
-* The BLE ECO clock driver has the following specific deviations:
-* <table class="doxtable">
-*     <tr>
-*       <th>MISRA rule</th>
-*       <th>Rule Class (Required/ Advisory)</th>
-*       <th>Rule Description</th>
-*       <th>Description of Deviation(s)</th>
-*     </tr>
-*     <tr>
-*       <td>10.1</td>
-*       <td>R</td>
-*       <td>The value of an expression of integer type shall not be implicitly converted to a different underlying type
-*           under some circumstances.</td>
-*       <td>An operand of essentially enum type is being converted to unsigned type as a result of an arithmetic or
-*           conditional operation. The conversion does not have any unintended effect.</td>
-*     </tr>
-* </table>
-* This driver does not contains any driver-specific MISRA violations.
-*
 * \section group_ble_clk_changelog Changelog
 * <table class="doxtable">
 *   <tr><th>Version</th><th>Changes</th><th>Reason of Change</th></tr>
+*   <tr>
+*     <td>3.60</td>
+*     <td>MISRA</td>
+*     <td>Resolve MISRA 2012 standard defects.</td>
+*   </tr>
+*   <tr>
+*     <td>3.50</td>
+*     <td>Updated \ref Cy_BLE_EcoConfigure, \ref Cy_BLE_EcoReset functions
+*         for PSoC 64 devices. Now the \ref Cy_BLE_EcoConfigure function can
+*         return PRA driver status value for PSoC 64 devices.</td>
+*     <td>The BLE ECO clock driver uses the PRA driver to change the frequency
+*         value on the protected side. A BLE ECO clock driver function that
+*         calls a PRA driver function will return the PRA error status code
+*         if the called PRA function returns an error. In these cases,
+*         refer to PRA return statuses. Refer to functions description for
+*         details.</td>
+*   </tr>
 *   <tr>
 *     <td>3.40.1</td>
 *     <td>Minor documentation updates.</td>
@@ -137,7 +134,7 @@ extern "C" {
 #define CY_BLE_CLK_DRV_VERSION_MAJOR    (3)
 
 /** Driver minor version */
-#define CY_BLE_CLK_DRV_VERSION_MINOR    (40)
+#define CY_BLE_CLK_DRV_VERSION_MINOR    (60)
 
 /** Driver ID */
 #define CY_BLE_CLK_ID                   (0x05UL << 18U)
@@ -270,6 +267,19 @@ typedef struct
     cy_en_ble_eco_sys_clk_div_t       ecoSysDiv;
 
 } cy_stc_ble_eco_config_t;
+
+#if (defined(CY_DEVICE_SECURE))
+/** PRA structure for Cy_BLE_EcoConfigure function parameters */
+typedef struct
+{
+    cy_en_ble_eco_freq_t freq;
+    cy_en_ble_eco_sys_clk_div_t sysClkDiv;
+    uint32_t cLoad;
+    uint32_t xtalStartUpTime;
+    cy_en_ble_eco_voltage_reg_t voltageReg;
+} cy_stc_pra_ble_eco_config_t;
+#endif /* (defined(CY_DEVICE_SECURE)) */
+
 /** \endcond */
 
 

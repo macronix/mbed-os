@@ -16,6 +16,9 @@
  * limitations under the License.
  */
 
+/* MBED_DEPRECATED */
+#warning "These services are deprecated and will be removed. Please see services.md for details about replacement services."
+
 #ifndef MBED_BLE_BATTERY_SERVICE_H__
 #define MBED_BLE_BATTERY_SERVICE_H__
 
@@ -86,7 +89,7 @@ public:
         GattService batteryService(
             GattService::UUID_BATTERY_SERVICE,
             charTable,
-            sizeof(charTable) / sizeof(GattCharacteristic *)
+            sizeof(charTable) / sizeof(charTable[0])
         );
 
         ble.gattServer().addService(batteryService);

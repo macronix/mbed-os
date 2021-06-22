@@ -184,6 +184,14 @@ static u16_t dns_txid;
 #define LWIP_DNS_ISMDNS_ARG(x)
 #endif
 
+/** dns_server_interface structue
+    used locally for multihoming systems. */
+struct dns_server_interface {
+    char interface_name [INTERFACE_NAME_MAX_SIZE];
+    ip_addr_t dns_servers[DNS_MAX_SERVERS];
+    struct dns_server_interface *next;
+};
+
 /** DNS query message structure.
     No packing needed: only used locally on the stack. */
 struct dns_query {
@@ -433,6 +441,9 @@ dns_add_interface_server(u8_t numdns, const char *interface_name, const ip_addr_
   // add new dns server to the list tail
   new_interface_server = mem_malloc(sizeof(struct dns_server_interface));
   snprintf(new_interface_server->interface_name, INTERFACE_NAME_MAX_SIZE, "%s",interface_name);
+  for (u32_t i=0; i<DNS_MAX_SERVERS; i++) {
+    ip_addr_set_zero(&new_interface_server->dns_servers[i]);  
+  }
   new_interface_server->dns_servers[numdns] = (*dnsserver);
   new_interface_server->next = NULL;
 
@@ -491,7 +502,9 @@ dns_get_interface_server(u8_t numdns, const char *interface_name)
   if (numdns >= DNS_MAX_SERVERS) {
     return IP_ADDR_ANY;
   }
-
+  if (interface_name == NULL) {
+    return IP_ADDR_ANY;
+  }
   for (interface_server = multihoming_dns_servers; interface_server != NULL; interface_server = interface_server->next) {
     if (!strcmp(interface_name, interface_server->interface_name)) {
       return &interface_server->dns_servers[numdns];

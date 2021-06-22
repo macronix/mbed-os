@@ -1,5 +1,6 @@
 /* mbed Microcontroller Library
  * Copyright (c) 2018 ARM Limited
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  * limitations under the License.
  */
 
-#if MBED_CONF_NSAPI_PRESENT
+#if MBED_CONF_CELLULAR_PRESENT
 
 #include "ONBOARD_QUECTEL_BG96.h"
 
@@ -116,4 +117,4 @@ CellularDevice *CellularDevice::get_target_default_instance()
     return &device;
 }
 
-#endif // MBED_CONF_NSAPI_PRESENT
+#endif // MBED_CONF_CELLULAR_PRESENT

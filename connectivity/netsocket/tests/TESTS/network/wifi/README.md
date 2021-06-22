@@ -140,7 +140,7 @@ This must be a first test to run after constructing the driver. No credentials s
 
 **Precondition:**
 
-Test the enviroment is set up as specified in the "Test Environment" chapter.
+Test the environment is set up as specified in the "Test Environment" chapter.
 
 **Test steps:**
 
@@ -179,7 +179,6 @@ Call `set_credentials()` with various parameters described in "Expected results"
 | ssid="OK"  | [any 63 character string] | NSAPI_SECURITY_WPA2              | NSAPI_ERROR_OK                                      |
 | ssid="OK"  | ""                        | NSAPI_SECURITY_WPA_WPA2          | NSAPI_ERROR_PARAMETER                               |
 | ssid="OK"  | ""                        | NSAPI_SECURITY_WPA3_WPA2         | NSAPI_ERROR_PARAMETER                               |
-| ssid="OK"  | ""                        | NSAPI_SECURITY_WEP               | NSAPI_ERROR_PARAMETER because password is missing.  |
 | ssid="OK"  | ""                        | NSAPI_SECURITY_NONE              | NSAPI_ERROR_OK                                      |
 | ssid="OK"  | "12345678"                | NSAPI_SECURITY_WPA_WPA2          | NSAPI_ERROR_OK                                      |
 | ssid="OK"  | "12345678"                | NSAPI_SECURITY_WPA3_WPA2         | NSAPI_ERROR_OK                                      |
@@ -246,7 +245,7 @@ API is a bit unclear whether 0 can also mean that driver does not support report
 
 **Precondition:**
 
-Test enviroment is set up as specified in "Test Environment" chapter.
+Test environment is set up as specified in "Test Environment" chapter.
 
 **Test steps:**
 
@@ -267,7 +266,7 @@ Test `WiFiInterface::connect(ssid, pass, security, channel)` with NULL parameter
 
 **Precondition:**
 
-Test enviroment is set up as specified in "Test Environment" chapter.
+Test environment is set up as specified in "Test Environment" chapter.
 
 **Test steps:**
 
@@ -287,7 +286,7 @@ Test `WiFiInterface::connect(ssid, pass, security)` with valid parameters for se
 
 **Preconditions:**
 
-Test enviroment is set up as specified in the "Test Environment" chapter.
+Test environment is set up as specified in the "Test Environment" chapter.
 
 **Test steps:**
 
@@ -309,7 +308,7 @@ This test only applies to devices that support selecting the channel (passes `WI
 
 **Precondition:**
 
-Test enviroment is set up as specified in the "Test Environment" chapter.
+Test environment is set up as specified in the "Test Environment" chapter.
 
 **Test steps:**
 
@@ -331,7 +330,7 @@ This test only applies to devices that support selecting the channel (passes `WI
 
 **Precondition:**
 
-Test enviroment is set up as specified in the "Test Environment" chapter.
+Test environment is set up as specified in the "Test Environment" chapter.
 
 **Test steps:**
 
@@ -351,7 +350,7 @@ Test `WiFiInterface::connect()` without parameters. Use `set_credentials()` for 
 
 **Preconditions:**
 
-1.  Test enviroment is set up as specified in the "Test Environment" chapter.
+1.  Test environment is set up as specified in the "Test Environment" chapter.
 
 **Test steps:**
 
@@ -379,7 +378,7 @@ Test `WiFiInterface::connect()` and `WiFiInterface::disconnect()` in non-blockin
 
 **Preconditions:**
 
-1.  Test enviroment is set up as specified in the "Test Environment" chapter.
+1.  Test environment is set up as specified in the "Test Environment" chapter.
 
 **Test steps:**
 
@@ -412,7 +411,7 @@ Test `WiFiInterface::connect()` without parameters. Use secure settings for `set
 
 **Precondition:**
 
-The test enviroment is set up as specified in the "Test Environment" chapter.
+The test environment is set up as specified in the "Test Environment" chapter.
 
 **Test steps:**
 
@@ -433,7 +432,7 @@ The `connect()` call returns `NSAPI_ERROR_OK`.
 
 **Precondition:**
 
-The test enviroment is set up as specified in the "Test Environment" chapter.
+The test environment is set up as specified in the "Test Environment" chapter.
 
 **Test steps:**
 
@@ -454,7 +453,7 @@ Test `WiFiInterface::connect()` - `disconnect()` repetition works.
 
 **Precondition:**
 
-The test enviroment is set up as specified in the "Test Environment" chapter.
+The test environment is set up as specified in the "Test Environment" chapter.
 
 **Test steps:**
 
@@ -478,7 +477,7 @@ Call `WiFiInterface::scan()` with null parameters to get the number of networks 
 
 **Precondition:**
 
-The test enviroment is set up as specified in the "Test Environment" chapter.
+The test environment is set up as specified in the "Test Environment" chapter.
 
 **Test steps:**
 
@@ -497,7 +496,7 @@ The test enviroment is set up as specified in the "Test Environment" chapter.
 
 **Preconditions:**
 
-1.  The test enviroment is set up as specified in the "Test Environment" chapter.
+1.  The test environment is set up as specified in the "Test Environment" chapter.
 2.  The test environment must contain less than 10 Wi-Fi SSID within the listening range of DUT; otherwise, adjust the value used in step 2.
 
 **Test steps:**

@@ -1,5 +1,6 @@
 /* mbed Microcontroller Library
  * Copyright (c) 2017-2017 ARM Limited
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +29,7 @@
 #include <string.h>
 
 #include "NRFCordioHCITransportDriver.h"
-#include "CordioHCITransportDriver.h"
+#include "ble/driver/CordioHCITransportDriver.h"
 
 using namespace ble;
 

@@ -83,6 +83,7 @@
 #include "Service_Libs/load_balance/load_balance_api.h"
 #include "Service_Libs/pan_blacklist/pan_blacklist_api.h"
 #include "Service_Libs/etx/etx.h"
+#include "libNET/src/net_dns_internal.h"
 
 #include "mac_api.h"
 #include "ethernet_mac_api.h"
@@ -264,6 +265,7 @@ void core_timer_event_handle(uint16_t ticksUpdate)
                         cur->nwk_wpan_nvm_api->nvm_params_update_cb(cur->nwk_wpan_nvm_api, false);
                     }
                     etx_cache_timer(cur->id, seconds);
+                    lowpan_adaptation_interface_slow_timer(cur);
                 }
             } else if (cur->nwk_id == IF_IPV6) {
                 //Slow Pointer Update
@@ -304,6 +306,8 @@ void core_timer_event_handle(uint16_t ticksUpdate)
         ipv6_destination_cache_timer(seconds);
         ipv6_frag_timer(seconds);
         cipv6_frag_timer(seconds);
+        net_dns_timer_seconds(seconds);
+
 #ifdef HAVE_WS
         ws_pae_controller_slow_timer(seconds);
 #endif
@@ -458,6 +462,7 @@ static void protocol_core_base_init(protocol_interface_info_entry_t *entry, nwk_
     entry->ipv6_configure = NULL;
     entry->if_lowpan_security_params = NULL;
     entry->if_ns_transmit = NULL;
+    entry->if_common_forwarding_out_cb = NULL;
     entry->if_special_forwarding = NULL;
     entry->if_snoop = NULL;
     entry->if_icmp_handler = NULL;

@@ -27,9 +27,8 @@
 #include "platform/mbed_wait_api.h"
 
 // FEATURE_BLE/targets/TARGET_CORDIO
-#include "BLEInstanceBase.h"
-#include "CordioHCIDriver.h"
-#include "CordioHCITransportDriver.h"
+#include "ble/driver/CordioHCIDriver.h"
+#include "ble/driver/CordioHCITransportDriver.h"
 #include "hci_api.h"
 #include "hci_cmd.h"
 #include "hci_core.h"
@@ -38,9 +37,9 @@
 #include "hci_mbed_os_adaptation.h"
 
 // rtos
-#include "Thread.h"
-#include "Semaphore.h"
-#include "Mutex.h"
+#include "rtos/Thread.h"
+#include "rtos/Semaphore.h"
+#include "rtos/Mutex.h"
 
 #define HCI_RESET_RAND_CNT              4
 

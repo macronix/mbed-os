@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  ******************************************************************************
  *
- * Copyright (c) 2017 STMicroelectronics.
+ * Copyright (c) 2015-2020 STMicroelectronics.
  * All rights reserved.
  *
  * This software component is licensed by ST under BSD 3-Clause license,
@@ -17,7 +17,7 @@
 
 #include "serial_api_hal.h"
 
-#define UART_NUM (5)
+#define UART_NUM (6)
 
 
 uint32_t serial_irq_ids[UART_NUM] = {0};
@@ -158,18 +158,12 @@ void serial_irq_set(serial_t *obj, SerialIrq irq, uint32_t enable)
         if (irq == RxIrq) {
             __HAL_UART_DISABLE_IT(huart, UART_IT_RXNE);
             // Check if TxIrq is disabled too
-#if defined(STM32G0)
-#define USART_CR1_TXEIE   USART_CR1_TXEIE_TXFNFIE
-#endif
             if ((huart->Instance->CR1 & USART_CR1_TXEIE) == 0) {
                 all_disabled = 1;
             }
         } else { // TxIrq
             __HAL_UART_DISABLE_IT(huart, UART_IT_TXE);
             // Check if RxIrq is disabled too
-#if defined(STM32G0)
-#define USART_CR1_RXNEIE   USART_CR1_RXNEIE_RXFNEIE
-#endif
             if ((huart->Instance->CR1 & USART_CR1_RXNEIE) == 0) {
                 all_disabled = 1;
             }

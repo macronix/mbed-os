@@ -40,6 +40,7 @@
 #include "stm32f7xx_ll_adc.h"
 #include "stm32f7xx_ll_rtc.h"
 #include "stm32f7xx_ll_pwr.h"
+#include "stm32f7xx_ll_rcc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -128,6 +129,9 @@ struct i2c_s {
     uint8_t slave;
     volatile uint8_t pending_slave_tx_master_rx;
     volatile uint8_t pending_slave_rx_maxter_tx;
+    uint8_t *slave_rx_buffer;
+    volatile uint8_t slave_rx_buffer_size;
+    volatile uint8_t slave_rx_count;
 #endif
 #if DEVICE_I2C_ASYNCH
     uint32_t address;
@@ -167,11 +171,7 @@ struct can_s {
 
 #if DEVICE_QSPI
 struct qspi_s {
-#if defined(OCTOSPI1)
-    OSPI_HandleTypeDef handle;
-#else
     QSPI_HandleTypeDef handle;
-#endif
     QSPIName qspi;
     PinName io0;
     PinName io1;

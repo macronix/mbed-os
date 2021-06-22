@@ -120,6 +120,10 @@
             "help": "Network name for a wisun network. Maximum network name length can be 32 ASCII characters excluding terminating 0",
             "value": "\"Wi-SUN Network\""
         },
+        "wisun-network-size": {
+            "help": "Expected amount of devices in the network as hundreds of devices. Use any number or one of the predefined values NETWORK_SIZE_SMALL, NETWORK_SIZE_MEDIUM, NETWORK_SIZE_LARGE or NETWORK_SIZE_XLARGE. Set to 0 to use Wi-SUN Certification configuration values. If set to null, then NETWORK_SIZE_MEDIUM (meaning hundreds of devices in the network) will be used.",
+            "value": null
+        },
         "wisun-regulatory-domain": {
             "help": "Regulator domain value as specified in the Wi-SUN PHY Specification. Default value 3 is for EU region.",
             "value": "3"
@@ -130,6 +134,14 @@
         },
         "wisun-operating-mode": {
             "help": "Operating mode as specified in the Wi-SUN PHY Specification. Wi-SUN stack uses operating-mode suitable for EU-region if value 255 is used.",
+            "value": "255"
+        },
+        "wisun-phy-mode-id": {
+            "help": "PHY mode ID as specified in the Wi-SUN PHY Specification. With default value 255, parameter is not used.",
+            "value": "255"
+        },
+        "wisun-channel-plan-id": {
+            "help": "Channel plan ID as specified in the Wi-SUN PHY Specification. With default value 255, parameter is not used.",
             "value": "255"
         },
         "wisun-uc-channel-function": {
@@ -196,6 +208,30 @@
         "own-certificate-key-len": {
             "help": "Own certificate's key length; optional for PEM format, must be defined for DER format",
             "value": null
+        },
+        "radius-server-ipv6-address": {
+            "help": "RADIUS Server IPv6 address in string format (e.g. \"2001:1234::1\")",
+            "value": null
+        },
+        "radius-shared-secret": {
+            "help": "RADIUS shared secret; ASCII string (e.g. \"radiuspassword\") or sequence of bytes (e.g. 0x01, 0x02, 0x03, 0x04, 0x05)",
+            "value": null
+        },
+        "radius-shared-secret-len": {
+            "help": "RADIUS shared secret length; If length is not defined, strlen() is used to determine RADIUS shared secret length",
+            "value": null
+        },
+        "radius-retry-imin": {
+            "help": "RADIUS retry trickle timer Imin; in 100ms units; range 1-1200; default 20 (2 seconds)",
+            "value": 20
+        },
+        "radius-retry-imax": {
+            "help": "RADIUS retry trickle timer Imax; in 100ms units; range 1-1200; default 30 (3 seconds)",
+            "value": 30
+        },
+        "radius-retry-count": {
+            "help": "RADIUS retry trickle count; default 3",
+            "value": 3
         }
     },
     "target_overrides": {

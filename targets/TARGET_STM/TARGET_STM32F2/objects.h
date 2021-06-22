@@ -34,13 +34,19 @@
 #include "PortNames.h"
 #include "PeripheralNames.h"
 #include "PinNames.h"
+
 #include "stm32f2xx_ll_usart.h"
 #include "stm32f2xx_ll_tim.h"
 #include "stm32f2xx_ll_pwr.h"
+#include "stm32f2xx_ll_adc.h"
+#include "stm32f2xx_ll_rtc.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define GPIO_IP_WITHOUT_BRR
+#include "gpio_object.h"
 
 struct gpio_irq_s {
     IRQn_Type irq_n;
@@ -116,12 +122,15 @@ struct i2c_s {
     PinName scl;
     IRQn_Type event_i2cIRQ;
     IRQn_Type error_i2cIRQ;
-    uint8_t XferOperation;
+    uint32_t XferOperation;
     volatile uint8_t event;
 #if DEVICE_I2CSLAVE
     uint8_t slave;
     volatile uint8_t pending_slave_tx_master_rx;
     volatile uint8_t pending_slave_rx_maxter_tx;
+    uint8_t *slave_rx_buffer;
+    volatile uint8_t slave_rx_buffer_size;
+    volatile uint8_t slave_rx_count;
 #endif
 #if DEVICE_I2C_ASYNCH
     uint32_t address;
@@ -158,9 +167,6 @@ struct flash_s {
     uint32_t dummy;
 };
 #endif
-
-#define GPIO_IP_WITHOUT_BRR
-#include "gpio_object.h"
 
 #ifdef __cplusplus
 }

@@ -46,6 +46,12 @@
 
 static SingletonPtr<PlatformMutex> _mutex;
 
+/* DIR is typedeffed to struct DIR_impl in header */
+struct DIR_impl {
+    mbed::DirHandle *handle;
+    struct dirent entry;
+};
+
 #if defined(__ARMCC_VERSION)
 #   include <arm_compat.h>
 #   include <rt_sys.h>
@@ -174,7 +180,8 @@ DirectSerial::DirectSerial(PinName tx, PinName rx, int baud)
     if (stdio_uart_inited) {
         return;
     }
-    static const serial_pinmap_t console_pinmap = get_uart_pinmap(STDIO_UART_TX, STDIO_UART_RX);
+
+    static const serial_pinmap_t console_pinmap = get_uart_pinmap(CONSOLE_TX, CONSOLE_RX);
     serial_init_direct(&stdio_uart, &console_pinmap);
     serial_baud(&stdio_uart, baud);
 
@@ -249,7 +256,7 @@ static void do_serial_init()
         return;
     }
 
-    static const serial_pinmap_t console_pinmap = get_uart_pinmap(STDIO_UART_TX, STDIO_UART_RX);
+    static const serial_pinmap_t console_pinmap = get_uart_pinmap(CONSOLE_TX, CONSOLE_RX);
     serial_init_direct(&stdio_uart, &console_pinmap);
     serial_baud(&stdio_uart, MBED_CONF_PLATFORM_STDIO_BAUD_RATE);
 #if   CONSOLE_FLOWCONTROL == CONSOLE_FLOWCONTROL_RTS
@@ -328,7 +335,7 @@ static FileHandle *default_console()
 #if MBED_CONF_TARGET_CONSOLE_UART && DEVICE_SERIAL
 
 #  if MBED_CONF_PLATFORM_STDIO_BUFFERED_SERIAL
-    static const serial_pinmap_t console_pinmap = get_uart_pinmap(STDIO_UART_TX, STDIO_UART_RX);
+    static const serial_pinmap_t console_pinmap = get_uart_pinmap(CONSOLE_TX, CONSOLE_RX);
     static BufferedSerial console(console_pinmap, MBED_CONF_PLATFORM_STDIO_BAUD_RATE);
 #   if   CONSOLE_FLOWCONTROL == CONSOLE_FLOWCONTROL_RTS
     static const serial_fc_pinmap_t fc_pinmap = get_uart_fc_pinmap(STDIO_UART_RTS, NC);
@@ -341,7 +348,7 @@ static FileHandle *default_console()
     console.serial_set_flow_control(SerialBase::RTSCTS, fc_pinmap);
 #   endif
 #  else
-    static const serial_pinmap_t console_pinmap = get_uart_pinmap(STDIO_UART_TX, STDIO_UART_RX);
+    static const serial_pinmap_t console_pinmap = get_uart_pinmap(CONSOLE_TX, CONSOLE_RX);
     static DirectSerial console(console_pinmap, MBED_CONF_PLATFORM_STDIO_BAUD_RATE);
 #  endif
 #else // MBED_CONF_TARGET_CONSOLE_UART && DEVICE_SERIAL
@@ -504,7 +511,7 @@ extern "C" std::FILE *fdopen(int fildes, const char *mode)
 {
     // This is to avoid scanf and the bloat it brings.
     char buf[1 + sizeof fildes]; /* @(integer) */
-    MBED_STATIC_ASSERT(sizeof buf == 5, "Integers should be 4 bytes.");
+    static_assert(sizeof buf == 5, "Integers should be 4 bytes.");
     buf[0] = '@';
     memcpy(buf + 1, &fildes, sizeof fildes);
 
@@ -1174,7 +1181,7 @@ extern "C" int fcntl(int fildes, int cmd, ...)
     switch (cmd) {
         case F_GETFL: {
             int flags = 0;
-            if (fhc->is_blocking()) {
+            if (!fhc->is_blocking()) {
                 flags |= O_NONBLOCK;
             }
             return flags;
@@ -1184,11 +1191,12 @@ extern "C" int fcntl(int fildes, int cmd, ...)
             va_start(ap, cmd);
             int flags = va_arg(ap, int);
             va_end(ap);
-            int ret = fhc->set_blocking(flags & O_NONBLOCK);
+            int ret = fhc->set_blocking(!(flags & O_NONBLOCK));
             if (ret < 0) {
                 errno = -ret;
                 return -1;
             }
+
             return 0;
         }
 
@@ -1297,9 +1305,15 @@ extern "C" DIR *opendir(const char *path)
         return NULL;
     }
 
-    DirHandle *dir;
-    int err = fs->open(&dir, fp.fileName());
+    DIR *dir = new (std::nothrow) DIR;
+    if (!dir) {
+        errno = ENOMEM;
+        return NULL;
+    }
+
+    int err = fs->open(&dir->handle, fp.fileName());
     if (err < 0) {
+        delete dir;
         errno = -err;
         return NULL;
     }
@@ -1309,8 +1323,7 @@ extern "C" DIR *opendir(const char *path)
 
 extern "C" struct dirent *readdir(DIR *dir)
 {
-    static struct dirent ent;
-    int err = dir->read(&ent);
+    int err = dir->handle->read(&dir->entry);
     if (err < 1) {
         if (err < 0) {
             errno = -err;
@@ -1318,12 +1331,13 @@ extern "C" struct dirent *readdir(DIR *dir)
         return NULL;
     }
 
-    return &ent;
+    return &dir->entry;
 }
 
 extern "C" int closedir(DIR *dir)
 {
-    int err = dir->close();
+    int err = dir->handle->close();
+    delete dir;
     if (err < 0) {
         errno = -err;
         return -1;
@@ -1334,17 +1348,17 @@ extern "C" int closedir(DIR *dir)
 
 extern "C" void rewinddir(DIR *dir)
 {
-    dir->rewind();
+    dir->handle->rewind();
 }
 
 extern "C" off_t telldir(DIR *dir)
 {
-    return dir->tell();
+    return dir->handle->tell();
 }
 
 extern "C" void seekdir(DIR *dir, off_t off)
 {
-    dir->seek(off);
+    dir->handle->seek(off);
 }
 
 extern "C" int mkdir(const char *path, mode_t mode)

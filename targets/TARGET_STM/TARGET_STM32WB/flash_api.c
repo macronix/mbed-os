@@ -19,7 +19,6 @@
 #if DEVICE_FLASH
 
 #include "flash_api.h"
-#include "flash_data.h"
 #include "mbed_critical.h"
 #include "mbed_assert.h"
 #include "cmsis.h"
@@ -27,7 +26,9 @@
 /*  Family specific include for WB with HW semaphores */
 #include "hw.h"
 #include "hw_conf.h"
+#if MBED_CONF_BLE_PRESENT
 #include "shci.h"
+#endif
 
 /* Used in HCIDriver.cpp/stm32wb_start_ble() */
 int BLE_inited = 0;
@@ -78,7 +79,7 @@ int32_t flash_erase_sector(flash_t *obj, uint32_t address)
     uint32_t cpu1_sem_status = 1;
     uint32_t cpu2_sem_status = 1;
 
-    if ((address >= (FLASH_BASE + FLASH_SIZE)) || (address < FLASH_BASE)) {
+    if ((address >= (FLASH_BASE + MBED_ROM_SIZE)) || (address < FLASH_BASE)) {
         return -1;
     }
 
@@ -90,6 +91,7 @@ int32_t flash_erase_sector(flash_t *obj, uint32_t address)
         return -1;
     }
 
+#if MBED_CONF_BLE_PRESENT
     if (BLE_inited) {
         /*
         *  Notify the CPU2 that some flash erase activity may be executed
@@ -99,6 +101,7 @@ int32_t flash_erase_sector(flash_t *obj, uint32_t address)
         */
         SHCI_C2_FLASH_EraseActivity(ERASE_ACTIVITY_ON);
     }
+#endif
 
     do {
         /* PESD bit mechanism used by M0+ to protect its timing */
@@ -137,6 +140,7 @@ int32_t flash_erase_sector(flash_t *obj, uint32_t address)
 
     while (__HAL_FLASH_GET_FLAG(FLASH_FLAG_CFGBSY));
 
+#if MBED_CONF_BLE_PRESENT
     if (BLE_inited) {
         /**
          *  Notify the CPU2 there will be no request anymore to erase the flash
@@ -144,6 +148,7 @@ int32_t flash_erase_sector(flash_t *obj, uint32_t address)
          */
         SHCI_C2_FLASH_EraseActivity(ERASE_ACTIVITY_OFF);
     }
+#endif
 
     /* Lock the Flash to disable the flash control register access (recommended
        to protect the FLASH memory against possible unwanted operation) */
@@ -173,7 +178,7 @@ int32_t flash_program_page(flash_t *obj, uint32_t address, const uint8_t *data, 
     uint32_t cpu1_sem_status = 1;
     uint32_t cpu2_sem_status = 1;
 
-    if ((address >= (FLASH_BASE + FLASH_SIZE)) || (address < FLASH_BASE)) {
+    if ((address >= (FLASH_BASE + MBED_ROM_SIZE)) || (address < FLASH_BASE)) {
         return -1;
     }
 
@@ -261,7 +266,7 @@ int32_t flash_program_page(flash_t *obj, uint32_t address, const uint8_t *data, 
 uint32_t flash_get_sector_size(const flash_t *obj, uint32_t address)
 {
     /*  considering 1 sector = 1 page */
-    if ((address >= (FLASH_BASE + FLASH_SIZE)) || (address < FLASH_BASE)) {
+    if ((address >= (FLASH_BASE + MBED_ROM_SIZE)) || (address < FLASH_BASE)) {
         return MBED_FLASH_INVALID_SIZE;
     } else {
         return FLASH_PAGE_SIZE;
@@ -295,7 +300,7 @@ uint32_t flash_get_start_address(const flash_t *obj)
  */
 uint32_t flash_get_size(const flash_t *obj)
 {
-    return FLASH_SIZE;
+    return MBED_ROM_SIZE;
 }
 
 uint8_t flash_get_erase_value(const flash_t *obj)

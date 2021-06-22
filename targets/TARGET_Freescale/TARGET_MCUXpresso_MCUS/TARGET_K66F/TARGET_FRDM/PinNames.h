@@ -1,5 +1,6 @@
 /* mbed Microcontroller Library
  * Copyright (c) 2006-2013 ARM Limited
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+/* MBED TARGET LIST: K66F */
+
 #ifndef MBED_PINNAMES_H
 #define MBED_PINNAMES_H
 
@@ -209,8 +213,8 @@ typedef enum {
     BUTTON2 = SW3,
 
     // USB Pins
-    USBTX = PTB17,
-    USBRX = PTB16,
+    CONSOLE_TX = PTB17,
+    CONSOLE_RX = PTB16,
 
     // Arduino Headers
     D0 = PTC3,

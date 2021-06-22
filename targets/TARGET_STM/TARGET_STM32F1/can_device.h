@@ -1,5 +1,6 @@
 /* mbed Microcontroller Library
  * Copyright (c) 2006-2017 ARM Limited
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,5 +40,9 @@ extern "C" {
 #define CAN1_IRQ_BUS_VECT       CAN1_SCE_IRQHandler
 
 #endif // DEVICE_CAN
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

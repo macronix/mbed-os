@@ -1,5 +1,6 @@
 /* mbed Microcontroller Library
  * Copyright (c) 2006-2013 ARM Limited
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+/* MBED TARGET LIST: FF_LPC546XX */
+
 #ifndef MBED_PINNAMES_H
 #define MBED_PINNAMES_H
 
@@ -190,8 +194,8 @@ typedef enum {
 
 
     // USB Pins
-    USBTX = P0_30,
-    USBRX = P0_29,
+    CONSOLE_TX = P0_30,
+    CONSOLE_RX = P0_29,
 
 
     A0 = P0_16,

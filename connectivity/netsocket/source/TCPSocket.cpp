@@ -1,5 +1,6 @@
 /* Socket
  * Copyright (c) 2015 ARM Limited
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +16,7 @@
  */
 
 #include "netsocket/TCPSocket.h"
+#include <new>
 #include "Timer.h"
 #include "mbed_assert.h"
 
@@ -265,7 +267,12 @@ TCPSocket *TCPSocket::accept(nsapi_error_t *error)
         ret = _stack->socket_accept(_socket, &socket, &address);
 
         if (0 == ret) {
-            connection = new TCPSocket(this, socket, address);
+            connection = new (std::nothrow) TCPSocket(this, socket, address);
+            if (!connection) {
+                ret = NSAPI_ERROR_NO_MEMORY;
+                break;
+            }
+
             _socket_stats.stats_update_peer(connection, address);
             _socket_stats.stats_update_socket_state(connection, SOCK_CONNECTED);
             break;

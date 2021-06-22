@@ -142,6 +142,7 @@ typedef struct {
     sec_prot_gtk_keys_t *gtks;                             /**< Link to GTKs */
     uint16_t new_pan_id;                                   /**< new PAN ID indicated by bootstrap */
     uint16_t key_pan_id;                                   /**< PAN ID for keys */
+    uint16_t pan_version;                                  /**< PAN version for keys */
     bool updated : 1;                                      /**< Network info has been updated */
 } sec_prot_keys_nw_info_t;
 
@@ -198,6 +199,14 @@ sec_prot_gtk_keys_t *sec_prot_keys_gtks_create(void);
  *
  */
 void sec_prot_keys_gtks_init(sec_prot_gtk_keys_t *gtks);
+
+/**
+ * sec_prot_keys_gtks_init clear GTK keys
+ *
+ * \param gtks GTK keys
+ *
+ */
+void sec_prot_keys_gtks_clear(sec_prot_gtk_keys_t *gtks);
 
 /**
  * sec_prot_keys_gtks_delete frees GTK keys memory
@@ -615,11 +624,12 @@ uint32_t sec_prot_keys_gtk_lifetime_get(sec_prot_gtk_keys_t *gtks, uint8_t index
  * \param index index for GTK
  * \param current_time current timestamp
  * \param seconds elapsed seconds
+ * \param gtk_update_enable enable GTK status to be updated
  *
  * \return new GTK lifetime
  *
  */
-uint32_t sec_prot_keys_gtk_lifetime_decrement(sec_prot_gtk_keys_t *gtks, uint8_t index, uint64_t current_time, uint16_t seconds);
+uint32_t sec_prot_keys_gtk_lifetime_decrement(sec_prot_gtk_keys_t *gtks, uint8_t index, uint64_t current_time, uint16_t seconds, bool gtk_update_enable);
 
 /**
  * sec_prot_keys_gtk_exptime_from_lifetime_get converts GTK lifetime to expiry time.

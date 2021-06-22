@@ -23,10 +23,11 @@
 typedef struct sec_prot_cfg_s {
     trickle_params_t sec_prot_trickle_params;
     uint16_t sec_prot_retry_timeout;
-    uint16_t sec_max_ongoing_authentication;
     uint16_t initial_key_retry_delay;
     trickle_params_t initial_key_trickle_params;
     uint8_t initial_key_retry_cnt;
+    uint8_t max_ongoing_auth_constant;
+    uint16_t max_ongoing_auth_size_scaler;
 } sec_prot_cfg_t;
 
 /* Security timer configuration settings */
@@ -42,5 +43,26 @@ typedef struct sec_timer_cfg_s {
     uint16_t gtk_max_mismatch;                       /* GTK_MAX_MISMATCH (seconds) */
     uint8_t gtk_new_install_req;                     /* GTK_NEW_INSTALL_REQUIRED (percent of GTK lifetime) */
 } sec_timer_cfg_t;
+
+/* Security radius configuration settings */
+
+typedef struct sec_radius_cfg_s {
+    uint8_t radius_addr[16];                         /**< Radius server IPv6 address */
+    const uint8_t *radius_shared_secret;             /**< Radius shared secret */
+    uint16_t radius_shared_secret_len;               /**< Radius shared secret length */
+    trickle_params_t radius_retry_trickle_params;    /**< Radius retry trickle params */
+    bool radius_addr_set : 1;                        /**< Radius server address is set */
+} sec_radius_cfg_t;
+
+typedef struct sec_timing_cfg_s {
+    uint16_t temp_eapol_min_timeout;                 /**< Temporary neighbor link minimum timeout; seconds; default 330 */
+} sec_timing_cfg_t;
+
+typedef struct sec_cfg_s {
+    sec_prot_cfg_t prot_cfg;
+    sec_timer_cfg_t timer_cfg;
+    sec_timing_cfg_t timing_cfg;
+    sec_radius_cfg_t *radius_cfg;
+} sec_cfg_t;
 
 #endif /* SEC_PROT_CONF_H_ */

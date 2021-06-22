@@ -258,7 +258,9 @@ qspi_status_t qspi_prepare_command(const qspi_command_t *command, QSPI_CommandTy
     // these are target specific settings, use default values
     st_command->SIOOMode = QSPI_SIOO_INST_EVERY_CMD;
     st_command->DdrMode = QSPI_DDR_MODE_DISABLE;
+#if defined(QSPI_DDR_HHC_ANALOG_DELAY)
     st_command->DdrHoldHalfCycle = QSPI_DDR_HHC_ANALOG_DELAY;
+#endif
 
     if (command->address.disabled == true) {
         st_command->AddressMode = QSPI_ADDRESS_NONE;
@@ -387,7 +389,7 @@ qspi_status_t qspi_init_direct(qspi_t *obj, const qspi_pinmap_t *pinmap, uint32_
 static qspi_status_t _qspi_init_direct(qspi_t *obj, const qspi_pinmap_t *pinmap, uint32_t hz, uint8_t mode)
 #endif
 {
-    tr_info("qspi_init mode %u", mode);
+    tr_debug("qspi_init mode %u", mode);
 
     // Reset handle internal state
     obj->handle.State = HAL_OSPI_STATE_RESET;
@@ -405,7 +407,9 @@ static qspi_status_t _qspi_init_direct(qspi_t *obj, const qspi_pinmap_t *pinmap,
     obj->handle.Init.DeviceSize = POSITION_VAL(QSPI_FLASH_SIZE_DEFAULT) - 1;
     obj->handle.Init.ChipSelectHighTime = 3;
     obj->handle.Init.FreeRunningClock = HAL_OSPI_FREERUNCLK_DISABLE;
+#if defined(HAL_OSPI_WRAP_NOT_SUPPORTED) // removed in STM32L4
     obj->handle.Init.WrapSize = HAL_OSPI_WRAP_NOT_SUPPORTED;
+#endif
     obj->handle.Init.ClockMode = mode == 0 ? HAL_OSPI_CLOCK_MODE_0 : HAL_OSPI_CLOCK_MODE_3;
     obj->handle.Init.DelayHoldQuarterCycle = HAL_OSPI_DHQC_ENABLE;
     obj->handle.Init.ChipSelectBoundary = 0;
@@ -533,18 +537,18 @@ qspi_status_t qspi_init_direct(qspi_t *obj, const qspi_pinmap_t *pinmap, uint32_
 static qspi_status_t _qspi_init_direct(qspi_t *obj, const qspi_pinmap_t *pinmap, uint32_t hz, uint8_t mode)
 #endif
 {
-    tr_info("qspi_init mode %u", mode);
+    tr_debug("qspi_init mode %u", mode);
     // Enable interface clock for QSPI
     __HAL_RCC_QSPI_CLK_ENABLE();
 
     // Reset QSPI
-#if defined(DUAL_CORE)
+#if defined(DUAL_CORE) && (TARGET_STM32H7)
     while (LL_HSEM_1StepLock(HSEM, CFG_HW_RCC_SEMID)) {
     }
 #endif /* DUAL_CORE */
     __HAL_RCC_QSPI_FORCE_RESET();
     __HAL_RCC_QSPI_RELEASE_RESET();
-#if defined(DUAL_CORE)
+#if defined(DUAL_CORE) && (TARGET_STM32H7)
     LL_HSEM_ReleaseLock(HSEM, CFG_HW_RCC_SEMID, HSEM_CR_COREID_CURRENT);
 #endif /* DUAL_CORE */
 
@@ -555,7 +559,11 @@ static qspi_status_t _qspi_init_direct(qspi_t *obj, const qspi_pinmap_t *pinmap,
     // Set default QSPI handle values
     obj->handle.Init.ClockPrescaler = 1;
     obj->handle.Init.FifoThreshold = 1;
+#if defined(QSPI_NO_SAMPLE_SHIFT)
+    obj->handle.Init.SampleShifting = QSPI_SAMPLE_SHIFTING_NONE;
+#else
     obj->handle.Init.SampleShifting = QSPI_SAMPLE_SHIFTING_HALFCYCLE;
+#endif
     obj->handle.Init.FlashSize = POSITION_VAL(QSPI_FLASH_SIZE_DEFAULT) - 1;
     obj->handle.Init.ChipSelectHighTime = QSPI_CS_HIGH_TIME_5_CYCLE;
     obj->handle.Init.ClockMode = QSPI_CLOCK_MODE_0;
@@ -630,7 +638,7 @@ qspi_status_t qspi_init(qspi_t *obj, PinName io0, PinName io1, PinName io2, PinN
 #if defined(OCTOSPI1)
 qspi_status_t qspi_free(qspi_t *obj)
 {
-    tr_info("qspi_free");
+    tr_debug("qspi_free");
     if (HAL_OSPI_DeInit(&obj->handle) != HAL_OK) {
         return QSPI_STATUS_ERROR;
     }
@@ -648,13 +656,13 @@ qspi_status_t qspi_free(qspi_t *obj)
     }
 #endif
 
-    // Configure GPIOs
-    pin_function(obj->io0, STM_PIN_DATA(STM_MODE_INPUT, GPIO_NOPULL, 0));
-    pin_function(obj->io1, STM_PIN_DATA(STM_MODE_INPUT, GPIO_NOPULL, 0));
-    pin_function(obj->io2, STM_PIN_DATA(STM_MODE_INPUT, GPIO_NOPULL, 0));
-    pin_function(obj->io3, STM_PIN_DATA(STM_MODE_INPUT, GPIO_NOPULL, 0));
-    pin_function(obj->sclk, STM_PIN_DATA(STM_MODE_INPUT, GPIO_NOPULL, 0));
-    pin_function(obj->ssel, STM_PIN_DATA(STM_MODE_INPUT, GPIO_NOPULL, 0));
+    // Configure GPIOs back to reset value
+    pin_function(obj->io0, STM_PIN_DATA(STM_MODE_ANALOG, GPIO_NOPULL, 0));
+    pin_function(obj->io1, STM_PIN_DATA(STM_MODE_ANALOG, GPIO_NOPULL, 0));
+    pin_function(obj->io2, STM_PIN_DATA(STM_MODE_ANALOG, GPIO_NOPULL, 0));
+    pin_function(obj->io3, STM_PIN_DATA(STM_MODE_ANALOG, GPIO_NOPULL, 0));
+    pin_function(obj->sclk, STM_PIN_DATA(STM_MODE_ANALOG, GPIO_NOPULL, 0));
+    pin_function(obj->ssel, STM_PIN_DATA(STM_MODE_ANALOG, GPIO_NOPULL, 0));
 
     (void)(obj);
     return QSPI_STATUS_OK;
@@ -662,20 +670,20 @@ qspi_status_t qspi_free(qspi_t *obj)
 #else /* OCTOSPI */
 qspi_status_t qspi_free(qspi_t *obj)
 {
-    tr_info("qspi_free");
+    tr_debug("qspi_free");
 
     if (HAL_QSPI_DeInit(&obj->handle) != HAL_OK) {
         return QSPI_STATUS_ERROR;
     }
 
     // Reset QSPI
-#if defined(DUAL_CORE)
+#if defined(DUAL_CORE) && (TARGET_STM32H7)
     while (LL_HSEM_1StepLock(HSEM, CFG_HW_RCC_SEMID)) {
     }
 #endif /* DUAL_CORE */
     __HAL_RCC_QSPI_FORCE_RESET();
     __HAL_RCC_QSPI_RELEASE_RESET();
-#if defined(DUAL_CORE)
+#if defined(DUAL_CORE) && (TARGET_STM32H7)
     LL_HSEM_ReleaseLock(HSEM, CFG_HW_RCC_SEMID, HSEM_CR_COREID_CURRENT);
 #endif /* DUAL_CORE */
 
@@ -683,12 +691,12 @@ qspi_status_t qspi_free(qspi_t *obj)
     __HAL_RCC_QSPI_CLK_DISABLE();
 
     // Configure GPIOs
-    pin_function(obj->io0, STM_PIN_DATA(STM_MODE_INPUT, GPIO_NOPULL, 0));
-    pin_function(obj->io1, STM_PIN_DATA(STM_MODE_INPUT, GPIO_NOPULL, 0));
-    pin_function(obj->io2, STM_PIN_DATA(STM_MODE_INPUT, GPIO_NOPULL, 0));
-    pin_function(obj->io3, STM_PIN_DATA(STM_MODE_INPUT, GPIO_NOPULL, 0));
-    pin_function(obj->sclk, STM_PIN_DATA(STM_MODE_INPUT, GPIO_NOPULL, 0));
-    pin_function(obj->ssel, STM_PIN_DATA(STM_MODE_INPUT, GPIO_NOPULL, 0));
+    pin_function(obj->io0, STM_PIN_DATA(STM_MODE_ANALOG, GPIO_NOPULL, 0));
+    pin_function(obj->io1, STM_PIN_DATA(STM_MODE_ANALOG, GPIO_NOPULL, 0));
+    pin_function(obj->io2, STM_PIN_DATA(STM_MODE_ANALOG, GPIO_NOPULL, 0));
+    pin_function(obj->io3, STM_PIN_DATA(STM_MODE_ANALOG, GPIO_NOPULL, 0));
+    pin_function(obj->sclk, STM_PIN_DATA(STM_MODE_ANALOG, GPIO_NOPULL, 0));
+    pin_function(obj->ssel, STM_PIN_DATA(STM_MODE_ANALOG, GPIO_NOPULL, 0));
 
     (void)(obj);
     return QSPI_STATUS_OK;
@@ -699,7 +707,7 @@ qspi_status_t qspi_free(qspi_t *obj)
 #if defined(OCTOSPI1)
 qspi_status_t qspi_frequency(qspi_t *obj, int hz)
 {
-    tr_info("qspi_frequency hz %d", hz);
+    tr_debug("qspi_frequency hz %d", hz);
     qspi_status_t status = QSPI_STATUS_OK;
 
     /* HCLK drives QSPI. QSPI clock depends on prescaler value:
@@ -726,7 +734,7 @@ qspi_status_t qspi_frequency(qspi_t *obj, int hz)
 #else /* OCTOSPI */
 qspi_status_t qspi_frequency(qspi_t *obj, int hz)
 {
-    tr_info("qspi_frequency hz %d", hz);
+    tr_debug("qspi_frequency hz %d", hz);
     qspi_status_t status = QSPI_STATUS_OK;
 
     /* HCLK drives QSPI. QSPI clock depends on prescaler value:
@@ -794,10 +802,10 @@ qspi_status_t qspi_write(qspi_t *obj, const qspi_command_t *command, const void 
 
     st_command.NbData = *length;
 
-    if (HAL_QSPI_Command(&obj->handle, &st_command, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+    if (HAL_QSPI_Command(&obj->handle, &st_command, HAL_QSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
         status = QSPI_STATUS_ERROR;
     } else {
-        if (HAL_QSPI_Transmit(&obj->handle, (uint8_t *)data, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+        if (HAL_QSPI_Transmit(&obj->handle, (uint8_t *)data, HAL_QSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
             status = QSPI_STATUS_ERROR;
         }
     }
@@ -843,10 +851,10 @@ qspi_status_t qspi_read(qspi_t *obj, const qspi_command_t *command, void *data, 
 
     st_command.NbData = *length;
 
-    if (HAL_QSPI_Command(&obj->handle, &st_command, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+    if (HAL_QSPI_Command(&obj->handle, &st_command, HAL_QSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
         status = QSPI_STATUS_ERROR;
     } else {
-        if (HAL_QSPI_Receive(&obj->handle, data, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+        if (HAL_QSPI_Receive(&obj->handle, data, HAL_QSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
             status = QSPI_STATUS_ERROR;
         }
     }
@@ -861,7 +869,7 @@ qspi_status_t qspi_read(qspi_t *obj, const qspi_command_t *command, void *data, 
 #if defined(OCTOSPI1)
 qspi_status_t qspi_command_transfer(qspi_t *obj, const qspi_command_t *command, const void *tx_data, size_t tx_size, void *rx_data, size_t rx_size)
 {
-    tr_info("qspi_command_transfer tx %u rx %u command %#04x", tx_size, rx_size, command->instruction.value);
+    tr_debug("qspi_command_transfer tx %u rx %u command %#04x", tx_size, rx_size, command->instruction.value);
 
     qspi_status_t status = QSPI_STATUS_OK;
 
@@ -901,7 +909,7 @@ qspi_status_t qspi_command_transfer(qspi_t *obj, const qspi_command_t *command, 
 #else /* OCTOSPI */
 qspi_status_t qspi_command_transfer(qspi_t *obj, const qspi_command_t *command, const void *tx_data, size_t tx_size, void *rx_data, size_t rx_size)
 {
-    tr_info("qspi_command_transfer tx %u rx %u command %#04x", tx_size, rx_size, command->instruction.value);
+    tr_debug("qspi_command_transfer tx %u rx %u command %#04x", tx_size, rx_size, command->instruction.value);
     qspi_status_t status = QSPI_STATUS_OK;
 
     if ((tx_data == NULL || tx_size == 0) && (rx_data == NULL || rx_size == 0)) {
@@ -914,7 +922,7 @@ qspi_status_t qspi_command_transfer(qspi_t *obj, const qspi_command_t *command, 
 
         st_command.NbData = 1;
         st_command.DataMode = QSPI_DATA_NONE; /* Instruction only */
-        if (HAL_QSPI_Command(&obj->handle, &st_command, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+        if (HAL_QSPI_Command(&obj->handle, &st_command, HAL_QSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
             status = QSPI_STATUS_ERROR;
             return status;
         }

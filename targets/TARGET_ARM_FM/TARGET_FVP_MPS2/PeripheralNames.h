@@ -1,5 +1,6 @@
 /* mbed Microcontroller Library
  * Copyright (c) 2006-2018 ARM Limited
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -74,15 +75,23 @@ typedef enum {
     PWM_11
 } PWMName;
 
-#define STDIO_UART_TX     USBTX
-#define STDIO_UART_RX     USBRX
+#if defined(MBED_CONF_TARGET_STDIO_UART_TX)
+#define STDIO_UART_TX MBED_CONF_TARGET_STDIO_UART_TX
+#else
+#define STDIO_UART_TX CONSOLE_TX
+#endif
+#if defined(MBED_CONF_TARGET_STDIO_UART_RX)
+#define STDIO_UART_RX MBED_CONF_TARGET_STDIO_UART_RX
+#else
+#define STDIO_UART_RX CONSOLE_RX
+#endif
 #define STDIO_UART        UART_0
 
-#define MBED_UART0        USBTX, USBRX
+#define MBED_UART0        CONSOLE_TX, CONSOLE_RX
 #define MBED_UART1        XB_TX, XB_RX
 #define MBED_UART2        SH0_TX, SH0_RX
 #define MBED_UART3        SH1_TX, SH1_RX
-#define MBED_UARTUSB      USBTX, USBRX
+#define MBED_UARTUSB      CONSOLE_TX, CONSOLE_RX
 
 #ifdef __cplusplus
 }

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2015 ARM Limited
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -99,6 +100,31 @@ public:
      *                  or null if no MAC address is available.
      */
     virtual const char *get_mac_address();
+
+    /** Set the MAC address to the interface.
+     *
+     *  Set the provided MAC address on the network interface. The address must
+     *  be unique globally. The address must be set before calling the interface
+     *  connect() method.
+     *
+     *  Not all interfaces are supporting MAC address set and an error is not returned
+     *  for this method call. Verify the changed MAC address by checking packet
+     *  captures from the used network interface.
+     *
+     *  6-byte EUI-48 MAC addresses are used for Ethernet while Mesh interface is
+     *  using 8-byte EUI-64 address.
+     *
+     *  More information about obtaining MAC address can be found from:
+     *  https://standards.ieee.org/products-services/regauth/index.html
+     *
+     *  @param          mac_addr Buffer containing the MAC address in hexadecimal format.
+     *  @param          addr_len Length of provided buffer in bytes (6 or 8)
+     *  @retval         NSAPI_ERROR_OK on success
+     *  @retval         NSAPI_ERROR_UNSUPPORTED if this feature is not supported
+     *  @retval         NSAPI_ERROR_PARAMETER if address is not valid
+     *  @retval         NSAPI_ERROR_BUSY if address can't be set.
+     */
+    virtual nsapi_error_t set_mac_address(uint8_t *mac_addr, nsapi_size_t addr_len);
 
     /** Get the local IP address
      *
@@ -351,6 +377,18 @@ public:
      */
     virtual void attach(mbed::Callback<void(nsapi_event_t, intptr_t)> status_cb);
 
+#if MBED_CONF_NSAPI_ADD_EVENT_LISTENER_RETURN_CHANGE
+    /** Add event listener for interface.
+     *
+     * This API allows multiple callback to be registered for a single interface.
+     * of both leads to undefined behavior.
+     *
+     *  @param status_cb The callback for status changes.
+     *  @return NSAPI_ERROR_OK on success
+     *  @return NSAPI_ERROR_NO_MEMORY if the function fails to create a new entry.
+     */
+    nsapi_error_t add_event_listener(mbed::Callback<void(nsapi_event_t, intptr_t)> status_cb);
+#else
     /** Add event listener for interface.
      *
      * This API allows multiple callback to be registered for a single interface.
@@ -360,9 +398,16 @@ public:
      * Application may only use attach() or add_event_listener() interface. Mixing usage
      * of both leads to undefined behavior.
      *
+     * @warning This version of the function does not use the `std::nothrow` feature. Subsequently,
+     * the function may fail to allocate memory and cause a system error. To use the new
+     * version with the changes, set "nsapi.add-event-listener-return-change": 1 in the
+     * target overrides section in your mbed_app.json file.
+     *
      *  @param status_cb The callback for status changes.
      */
+    MBED_DEPRECATED_SINCE("mbed-os-6.12", "This function return value will change to nsapi_error_t in the next major release. See documentation for details.")
     void add_event_listener(mbed::Callback<void(nsapi_event_t, intptr_t)> status_cb);
+#endif
 
 #if MBED_CONF_PLATFORM_CALLBACK_COMPARABLE
     /** Remove event listener from interface.
@@ -486,6 +531,10 @@ public:
      * configuration).
      */
     virtual void set_default_parameters();
+
+private:
+    // Unified implementation for different versions of add_event_listener.
+    nsapi_error_t internal_add_event_listener(mbed::Callback<void(nsapi_event_t, intptr_t)> status_cb);
 };
 
 #endif
