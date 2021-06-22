@@ -1939,17 +1939,23 @@
         ],
         "extra_labels_add": [
             "STM32F429xI",
-            "MBED_PSA_SRV"
+            "MBED_PSA_SRV",
+            "MACRONIX_SECUREFLASH",
+            "MX75L25690F"
         ],
         "macros_add": [
             "STM32F429xx"
+        ],
+		"components_add": [
+            "SECUREFLASH"
         ],
         "device_has_add": [
             "ANALOGOUT",
             "CAN",
             "EMAC",
             "TRNG",
-            "USBDEVICE"
+            "USBDEVICE",
+			"SPI"
         ],
         "detect_code": [
             "0796"

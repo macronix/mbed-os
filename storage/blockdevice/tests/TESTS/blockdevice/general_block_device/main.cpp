@@ -53,6 +53,13 @@
 #include "FlashIAPBlockDevice.h"
 #endif
 
+#if COMPONENT_SECUREFLASH
+#include "SecureFlashBlockDevice.h"
+#if TARGET_MACRONIX_SECUREFLASH
+#include "macronix_keyprovision.h"
+#endif
+#endif
+
 // Debug available
 #ifndef MODE_DEBUG
 #define MODE_DEBUG      0
@@ -92,10 +99,11 @@ enum bd_type {
     sd,
     flashiap,
     ospif,
+	secureflash,
     default_bd
 };
 
-uint8_t bd_arr[6] = {0};
+uint8_t bd_arr[default_bd] = {0};
 
 static uint8_t test_iteration = 0;
 
@@ -113,6 +121,59 @@ static inline uint32_t align_up(uint32_t val, uint32_t size)
 static BlockDevice *get_bd_instance(uint8_t bd_type)
 {
     switch (bd_arr[bd_type]) {
+    case secureflash: {
+#if COMPONENT_SECUREFLASH
+    #if defined(DEVICE_SPI)
+    		static SecureFlashBlockDevice default_bd(
+    		MBED_CONF_SECUREFLASH_DRIVER_SPI_MOSI,
+			MBED_CONF_SECUREFLASH_DRIVER_SPI_MISO,
+			NC,
+			NC,
+			NC,
+			NC,
+			NC,
+			NC,
+			MBED_CONF_SECUREFLASH_DRIVER_SPI_CLK,
+			MBED_CONF_SECUREFLASH_DRIVER_SPI_CS,
+			NC,
+			0,
+			MBED_CONF_SECUREFLASH_DRIVER_SPI_FREQ
+		);
+    #endif
+    #if defined(TARGET_MACRONIX_SECUREFLASH)
+            {
+                uint8_t msg[3] = {'a', 'a', 'a'};                
+                uint8_t pub_key[] = {
+                        0x04, 0x48, 0x70, 0x81, 0xe1, 0x99, 0x8c, 0x9d, 
+                        0xfa, 0xd8, 0x52, 0xa6, 0xd0, 0x17, 0x28, 0x8f, 
+                        0x15, 0x4c, 0x23, 0xce, 0x1f, 0x61, 0xc6, 0x8b, 
+                        0xc0, 0x23, 0xb8, 0x60, 0x7a, 0x6f, 0x07, 0x44, 
+                        0xb9, 0x1e, 0xc0, 0x7d, 0x32, 0x34, 0xe1, 0x8d, 
+                        0xda, 0x66, 0x2d, 0x9b, 0x5d, 0x4b, 0xde, 0xdc, 
+                        0x52, 0x62, 0x37, 0x20, 0x99, 0x84, 0x40, 0x6b, 
+                        0xf9, 0xc7, 0x1e, 0x89, 0x93, 0x63, 0xe4, 0x2e, 
+                        0xcc};
+
+                uint8_t sig[] = {
+                        0x30, 0x46, 0x02, 0x21, 0x00, 0xC0, 0x12, 0x9B,
+                        0x38, 0xC3, 0xA4, 0xB7, 0x0B, 0xC3, 0xC8, 0xC8,
+                        0x97, 0x32, 0xAD, 0x59, 0xB4, 0x91, 0xEE, 0x29,
+                        0xC9, 0xD3, 0x7E, 0xDA, 0x04, 0xFA, 0xD3, 0x72,
+                        0xAC, 0x07, 0xD0, 0xDD, 0xE2, 0x02, 0x21, 0x00,
+                        0xF0, 0xEE, 0x3B, 0xCA, 0x1E, 0xD5, 0x80, 0x4D,
+                        0x98, 0x2A, 0x2B, 0x32, 0xC0, 0x61, 0xE7, 0x53,
+                        0xDC, 0x22, 0xF3, 0x03, 0xF7, 0x50, 0xC5, 0x7F,
+                        0x8A, 0xE7, 0x1B, 0x8C, 0x60, 0x2F, 0x31, 0x4E};
+
+            ecdsa_verify_key_from_bin(msg, sizeof(msg), pub_key, sizeof(pub_key), sig, sizeof(sig));
+            }
+    		// secureflash_keyprovision(&default_bd);
+#endif
+    	return &default_bd;
+#endif
+    	break;
+
+    }
         case spif: {
 #if COMPONENT_SPIF
             static SPIFBlockDevice default_bd(
@@ -778,7 +839,9 @@ void test_get_type_functionality()
     const char *bd_type = block_device->get_type();
     TEST_ASSERT_NOT_EQUAL(0, bd_type);
 
-#if COMPONENT_QSPIF
+#if COMPONENT_SECUREFLASH
+    TEST_ASSERT_EQUAL(0, strcmp(bd_type, "SECUREFLASH"));
+#elif COMPONENT_QSPIF
     TEST_ASSERT_EQUAL(0, strcmp(bd_type, "QSPIF"));
 #elif COMPONENT_OSPIF
     TEST_ASSERT_EQUAL(0, strcmp(bd_type, "OSPIF"));
@@ -848,11 +911,14 @@ int get_bd_count()
 #if COMPONENT_OSPIF
     bd_arr[count++] = ospif;          //5
 #endif
+#if COMPONENT_SECUREFLASH
+    bd_arr[count++] = secureflash;    //6
+#endif
 
     return count;
 }
 
-static const char *prefix[] = {"SPIF ", "QSPIF ", "DATAFLASH ", "SD ", "FLASHIAP ", "OSPIF ", "DEFAULT "};
+static const char *prefix[] = {"SPIF ", "QSPIF ", "DATAFLASH ", "SD ", "FLASHIAP ", "OSPIF ", "SECUREFLASH", "DEFAULT "};
 
 int main()
 {

@@ -20,6 +20,10 @@
 #include "mbed_error.h"
 
 
+#if COMPONENT_SECUREFLASH
+#include "SecureFlashBlockDevice.h"
+#endif
+
 #if COMPONENT_SPIF
 #include "SPIFBlockDevice.h"
 #endif
@@ -67,7 +71,13 @@ static inline uint32_t align_down(uint64_t val, uint64_t size)
 
 MBED_WEAK BlockDevice *BlockDevice::get_default_instance()
 {
-#if COMPONENT_SPIF
+#if COMPONENT_SECUREFLASH
+
+	static SecureFlashBlockDevice default_bd;
+
+	return &default_bd;
+
+#elif COMPONENT_SPIF
 
     static SPIFBlockDevice default_bd;
 
